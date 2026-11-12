@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<!--
+  SimpleStudent – Swagger UI for the Supabase Edge Function API (Test and Production).
+
+  Why here and not in Supabase? Edge Functions may not return HTML pages, so this static page is
+  published on GitHub Pages (workflow .github/workflows/pages.yml) and loads the OpenAPI contract
+  from each environment's Edge Function. "Try it out" calls that environment directly (CORS).
+
+  Your own copy (fork): change the two project refs below.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SimpleStudent API – Swagger (Supabase Edge Functions)</title>
+  <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css">
+  <style>
+    body { margin: 0; font-family: system-ui, sans-serif; }
+    .bar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; padding: 12px 20px;
+           background: #1f2937; color: #fff; }
+    .bar h1 { font-size: 18px; margin: 0 12px 0 0; }
+    .bar a { color: #93c5fd; }
+    .bar select { font-size: 15px; padding: 4px 8px; }
+    .bar .info { font-size: 13px; opacity: .85; }
+    .swagger-ui .topbar { display: none; }
+  </style>
+</head>
+<body>
+  <div class="bar">
+    <h1>SimpleStudent API</h1>
+    <label>Environment:
+      <select id="env">
+        <option value="xkkzlqedgvztdlvgerbu">Test (Supabase “SimpleStudent System Test”)</option>
+        <option value="ptkcvmldafnczhrixvcf">Production (Supabase “SimpleStudentSystem”)</option>
+      </select>
+    </label>
+    <span class="info" id="info">loading /api/info …</span>
+    <span class="info"><a href="https://github.com/tadasbulis-practice/SimpleStudentSystem">source on GitHub</a></span>
+  </div>
+  <div id="swagger-ui"></div>
+
+  <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js" crossorigin></script>
+  <script>
+    const FUNCTION = 'simplestudent-api';
+    const base = (ref) => `https://${ref}.supabase.co/functions/v1/${FUNCTION}`;
+    const select = document.getElementById('env');
+    const info = document.getElementById('info');
+
+    // ?env=production opens Production directly
+    if (new URLSearchParams(location.search).get('env') === 'production') select.selectedIndex = 1;
+
+    async function load() {
+      const url = base(select.value);
+      SwaggerUIBundle({ url: `${url}/swagger/v1/swagger.json`, dom_id: '#swagger-ui', deepLinking: true });
+      info.textContent = 'loading /api/info …';
+      try {
+        const r = await (await fetch(`${url}/api/info`)).json();
+        info.textContent = `${r.environment} · version ${r.version}` + (r.readOnly ? ' · read-only' : '') + ` · ${url}`;
+      } catch (e) {
+        info.textContent = `API not reachable (${url}) – not deployed yet, or the Supabase project is paused.`;
+      }
+    }
+    select.addEventListener('change', load);
+    load();
+  </script>
+</body>
+</html>
