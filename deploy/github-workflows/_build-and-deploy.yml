@@ -1,8 +1,9 @@
 # Reusable workflow – one release of SimpleStudentSystem into ONE environment:
 #
-#   1. database  – Supabase: apply new migrations (supabase/migrations) + demo data (supabase/seed.sql)
-#   2. image     – Docker image of every project → GitHub Container Registry (ghcr.io)
-#                  → if a deploy hook is configured: deploy to Render
+#   1. database       – Supabase: apply new migrations (supabase/migrations) + demo data (supabase/seed.sql)
+#   2. edge-function  – Supabase: deploy the API supabase/functions/simplestudent-api (runs INSIDE Supabase)
+#   3. image          – Docker image of every project → GitHub Container Registry (ghcr.io)
+#                       → if a deploy hook is configured: deploy to Render
 #
 # Called by deploy-test.yml       (release/vX.Y.Z      → environment "test"       → Supabase "SimpleStudent System Test")
 #       and deploy-production.yml (tag vX.Y.Z on main  → environment "production" → Supabase "SimpleStudentSystem")
@@ -13,7 +14,10 @@
 #
 # Everything is optional per environment – a missing secret is skipped with a notice:
 #   SUPABASE_DB_URL      secret   Session pooler URI of the Supabase project (with the password)
-#   SUPABASE_PROJECT_REF variable e.g. xkkzlqedgvztdlvgerbu – only for links in the run summary
+#   SUPABASE_PROJECT_REF variable e.g. xkkzlqedgvztdlvgerbu – Edge Function target + links in the summary
+#   SUPABASE_ACCESS_TOKEN secret   personal access token (supabase.com → Account → Access Tokens),
+#                                  repository secret or environment secret – needed for the Edge Function
+#   API_READ_ONLY        variable  true → the Edge Function API refuses POST / PUT / DELETE (e.g. production)
 #   RENDER_HOOK_*        secret   Render deploy hook of one service
 
 name: build-and-deploy (reusable)
@@ -88,6 +92,77 @@ jobs:
               echo
               echo "Table Editor: https://supabase.com/dashboard/project/${PROJECT_REF}/editor"
             fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  edge-function:
+    name: Supabase Edge Function API (${{ inputs.environment }})
+    needs: database        # the API needs the table from the migrations
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}   # the CLI reads it from the environment
+      PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v4
+
+      - name: Settings present?
+        id: check
+        run: |
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ] || [ -z "$PROJECT_REF" ]; then
+            echo "::notice title=Edge Function::SUPABASE_ACCESS_TOKEN or SUPABASE_PROJECT_REF missing for '${{ inputs.environment }}' - API not deployed."
+            echo "### Edge Function (${{ inputs.environment }}): skipped – no SUPABASE_ACCESS_TOKEN / SUPABASE_PROJECT_REF" >> "$GITHUB_STEP_SUMMARY"
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up Supabase CLI
+        if: steps.check.outputs.run == 'true'
+        uses: supabase/setup-cli@v1
+        with:
+          version: ${{ env.SUPABASE_CLI_VERSION }}
+
+      - name: Settings of the function (Edge Function secrets)
+        if: steps.check.outputs.run == 'true'
+        working-directory: ${{ inputs.lab_dir }}
+        run: |
+          case "${{ inputs.environment }}" in
+            production) app_env=Production ;;
+            test)       app_env=Test ;;
+            *)          app_env="${{ inputs.environment }}" ;;
+          esac
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          repo="${GITHUB_REPOSITORY#*/}"
+          supabase secrets set --remote="$PROJECT_REF" --yes \
+            APP_ENVIRONMENT="$app_env" \
+            APP_VERSION="${{ inputs.version }}" \
+            API_READ_ONLY="${{ vars.API_READ_ONLY || 'false' }}" \
+            SWAGGER_UI_URL="https://${owner}.github.io/${repo}/?env=${{ inputs.environment }}"
+
+      - name: Deploy supabase/functions/simplestudent-api
+        if: steps.check.outputs.run == 'true'
+        working-directory: ${{ inputs.lab_dir }}
+        # --use-api: bundled by Supabase, no Docker needed; --no-verify-jwt: public API (also in config.toml)
+        run: supabase functions deploy simplestudent-api --remote="$PROJECT_REF" --use-api --no-verify-jwt --yes
+
+      - name: Smoke test /api/info
+        if: steps.check.outputs.run == 'true'
+        run: |
+          url="https://${PROJECT_REF}.supabase.co/functions/v1/simplestudent-api"
+          for i in 1 2 3 4 5 6; do
+            if body=$(curl --fail --silent --show-error "$url/api/info"); then break; fi
+            echo "not ready yet ($i/6)"; sleep 10
+          done
+          echo "$body" | jq .
+          test "$(echo "$body" | jq -r .version)" = "${{ inputs.version }}"
+          count=$(curl --fail --silent "$url/api/students" | jq length)
+          {
+            echo "### Edge Function API (${{ inputs.environment }}): deployed, version ${{ inputs.version }}, $count students"
+            echo
+            echo "- API: $url/api/students"
+            echo "- OpenAPI: $url/swagger/v1/swagger.json"
+            echo "- Swagger UI: https://${GITHUB_REPOSITORY_OWNER,,}.github.io/${GITHUB_REPOSITORY#*/}/?env=${{ inputs.environment }}"
           } >> "$GITHUB_STEP_SUMMARY"
 
   image:

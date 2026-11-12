@@ -11,7 +11,8 @@ the right Supabase project – nothing has to be run by hand in the SQL Editor a
 | push to `release/vX.Y.Z` | `test` | **SimpleStudent System Test** (`xkkzlqedgvztdlvgerbu`) | `deploy-test.yml` |
 | `release/vX.Y.Z` → `main` + tag `vX.Y.Z` | `production` | **SimpleStudentSystem** (`ptkcvmldafnczhrixvcf`) | `deploy-production.yml` |
 
-Order in both environments: **1) database** (migrations + demo data) → **2) Docker images** → Render.
+Order in both environments: **1) database** (migrations + demo data) → **2) the API inside Supabase**
+(Edge Function, [section 6](#6-the-api-inside-supabase-edge-function-simplestudent-api)) and **Docker images** → Render.
 New code therefore never runs against an old table.
 
 ---
@@ -157,3 +158,90 @@ working version:
 | `Remote migration versions not found in local migrations directory` | The database has a migration the repository no longer has (file deleted / renamed). Restore the file; as a last resort `supabase migration repair --status reverted <version>`. |
 | Edited an applied migration, database does not change | Expected – a migration runs once. Create a new migration. |
 | "No secret SUPABASE_DB_URL" | The secret was created at repository level or in another environment – it must be an **Environment secret** of `test` / `production`. |
+
+---
+
+## 6. The API inside Supabase: Edge Function `simplestudent-api`
+
+Supabase cannot run our Docker containers, but it has **Edge Functions**: server code in TypeScript/JavaScript
+running on **Deno** (Node.js npm packages are imported with `npm:`). Free plan: 500,000 invocations per month.
+Python, PHP and .NET do not run there, so Supabase gets the **Node.js API** version: the same Express code, the same
+`openapi.json` contract, the same validator.
+
+| | Node.js API (Docker → Render) | Edge Function API (Supabase) |
+|---|---|---|
+| Code | `SimpleStudentNodeApi/src/app.js` | `supabase/functions/simplestudent-api/index.ts` |
+| Runs as | Node.js container, always on | Deno, started per request (serverless) |
+| Database | `DATABASE_URL` (Session pooler) | `SUPABASE_DB_URL` – provided by Supabase |
+| Deployment | Docker image → ghcr.io → Render deploy hook | `supabase functions deploy` |
+| Swagger UI | `/swagger` (HTML) | **GitHub Pages** – Edge Functions cannot return HTML |
+
+**Addresses** (after a release):
+
+| | Test | Production |
+|---|---|---|
+| API | `https://xkkzlqedgvztdlvgerbu.supabase.co/functions/v1/simplestudent-api/api/students` | `https://ptkcvmldafnczhrixvcf.supabase.co/functions/v1/simplestudent-api/api/students` |
+| Info | `…/simplestudent-api/api/info` | `…/simplestudent-api/api/info` |
+| Contract | `…/simplestudent-api/swagger/v1/swagger.json` | `…/simplestudent-api/swagger/v1/swagger.json` |
+| Swagger UI | `https://tadasbulis-practice.github.io/SimpleStudentSystem/?env=test` | `https://tadasbulis-practice.github.io/SimpleStudentSystem/?env=production` |
+
+### 6.1 One time: settings
+
+1. **Supabase access token** (for deploying the function; the DB password is not enough):
+   supabase.com → avatar top right → **Account preferences → Access Tokens → Generate new token**
+   (e.g. `github-actions-SimpleStudentSystem`). One token works for both projects.
+2. **GitHub secret** – one for the whole repository:
+   ```bash
+   gh secret set SUPABASE_ACCESS_TOKEN --repo tadasbulis-practice/SimpleStudentSystem
+   ```
+   (it asks for the value, so it does not end up in your shell history).
+3. **Production read-only** (recommended – the API is public, without login):
+   ```bash
+   gh variable set API_READ_ONLY --env production --repo tadasbulis-practice/SimpleStudentSystem --body true
+   ```
+   In Test, POST / PUT / DELETE work – students can experiment. In Production they answer `403`.
+4. **GitHub Pages:** Settings → **Pages → Build and deployment → Source: GitHub Actions**.
+   The page (`swagger-ui/index.html`) is published whenever `main` changes (= every Production release)
+   or with Actions → **pages → Run workflow**.
+
+### 6.2 What the workflow does
+
+Job **Supabase Edge Function API** in `_build-and-deploy.yml` (after the migrations):
+
+1. `supabase secrets set` – settings of the function: `APP_ENVIRONMENT` (Test / Production), `APP_VERSION`
+   (e.g. `1.1.0-rc.3`), `API_READ_ONLY`, `SWAGGER_UI_URL`;
+2. `supabase functions deploy simplestudent-api --use-api --no-verify-jwt` – Supabase bundles and deploys it;
+3. **smoke test**: `GET /api/info` must return exactly this version, `GET /api/students` the list of students.
+
+Without `SUPABASE_ACCESS_TOKEN` the job is skipped with a notice. In pull requests `check-migrations.yml` also checks
+that the function compiles (`deno check`, `deno lint`) and that its copies of `openapi.json`, `validator.js` and
+`problems.js` are **identical** to `SimpleStudentNodeApi` – one contract for all APIs.
+
+`verify_jwt = false` (`supabase/config.toml`) – the API is called without the Supabase key, like the Render APIs.
+
+### 6.3 Locally (Supabase CLI + Docker)
+
+```bash
+supabase start
+supabase functions serve
+```
+
+Then `http://localhost:54321/functions/v1/simplestudent-api/api/students`. The function uses the local Supabase
+database (`supabase db reset` creates the table and demo data).
+
+Changed the contract `SimpleStudentNodeApi/openapi/openapi.json`? Copy it into the function too:
+
+```bash
+cp SimpleStudentNodeApi/openapi/openapi.json SimpleStudentNodeApi/src/validator.js SimpleStudentNodeApi/src/problems.js supabase/functions/simplestudent-api/
+```
+
+### 6.4 Problems
+
+| Symptom | Cause / fix |
+|---|---|
+| `Unauthorized` / `401` while deploying | `SUPABASE_ACCESS_TOKEN` wrong or revoked – generate a new one. |
+| Smoke test: version does not match | The function still runs with the old secrets – re-run the job. |
+| `/swagger` in the browser shows JSON | Expected: Edge Functions cannot return HTML. Open Swagger UI on GitHub Pages. |
+| Swagger UI: "API not reachable" | Function not deployed to that project yet, or the project is paused. |
+| `403 This environment is read-only` | `API_READ_ONLY=true` in this environment – use Test. |
+| `500 Database error` | The table is missing (migrations not applied) – see job "Supabase database". |

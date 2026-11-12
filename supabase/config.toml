@@ -424,3 +424,11 @@ enabled = true
 # formatted with uppercase keywords, indent 2, max width 180, trailing commas,
 # and column/key alignment. Set to "null" to emit raw, unformatted SQL.
 # format_options = "{\"keywordCase\":\"upper\",\"indent\":2,\"maxWidth\":180,\"commaStyle\":\"trailing\"}"
+
+# SimpleStudent API as an Edge Function (supabase/functions/simplestudent-api).
+# verify_jwt = false: a public REST API – callable without the Supabase key, like the Render APIs.
+# Writes can be switched off per environment with the secret API_READ_ONLY=true (see deploy/SUPABASE.md).
+[functions.simplestudent-api]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/simplestudent-api/index.ts"

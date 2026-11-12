@@ -1,4 +1,9 @@
-# Checks the Supabase migrations BEFORE they reach Test / Production:
+# Checks the Supabase part BEFORE it reaches Test / Production:
+#  - job "migrations":    supabase/migrations + seed on a throw-away PostgreSQL
+#  - job "edge-function": the Edge Function API type-checks, passes lint, and its copies of the
+#                         contract / validator are identical to SimpleStudentNodeApi
+#
+# Details of the migrations job:
 # every pull request (and push to develop) applies supabase/migrations + supabase/seed.sql
 # to an empty, throw-away PostgreSQL inside the GitHub runner – twice, to prove that a second
 # run changes nothing. No secrets needed, so it also works for pull requests from forks.
@@ -7,10 +12,10 @@ name: check-migrations
 
 on:
   pull_request:
-    paths: ['supabase/**']
+    paths: ['supabase/**', 'SimpleStudentNodeApi/openapi/**', 'SimpleStudentNodeApi/src/validator.js', 'SimpleStudentNodeApi/src/problems.js']
   push:
     branches: [develop]
-    paths: ['supabase/**']
+    paths: ['supabase/**', 'SimpleStudentNodeApi/openapi/**', 'SimpleStudentNodeApi/src/validator.js', 'SimpleStudentNodeApi/src/problems.js']
   workflow_dispatch:
 
 permissions:
@@ -48,3 +53,26 @@ jobs:
         run: |
           psql "$DB_URL" -c 'SELECT * FROM "Students";'
           psql "$DB_URL" -c 'SELECT version, name FROM supabase_migrations.schema_migrations;'
+
+  edge-function:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: supabase/functions/simplestudent-api
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Copies identical to SimpleStudentNodeApi (one contract for all APIs)
+        run: |
+          diff -u ../../../SimpleStudentNodeApi/openapi/openapi.json openapi.json
+          diff -u ../../../SimpleStudentNodeApi/src/validator.js     validator.js
+          diff -u ../../../SimpleStudentNodeApi/src/problems.js      problems.js
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Type check + lint
+        run: |
+          deno check index.ts
+          deno lint

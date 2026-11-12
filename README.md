@@ -16,8 +16,12 @@ Students: this repository is **read-only** for you – browse it, clone it, or f
 | push to `release/vX.Y.Z` | **Test** | SimpleStudent System Test – `https://xkkzlqedgvztdlvgerbu.supabase.co` | `X.Y.Z-rc.N`, `test` |
 | merge into `main` + tag `vX.Y.Z` | **Production** | SimpleStudentSystem – `https://ptkcvmldafnczhrixvcf.supabase.co` | `X.Y.Z`, `latest` |
 
-Each deployment: **Supabase migrations first** (`supabase/migrations`, `supabase/seed.sql`), then Docker images
-→ Render.
+Each deployment: **Supabase migrations first** (`supabase/migrations`, `supabase/seed.sql`), then the
+**API inside Supabase** (Edge Function `supabase/functions/simplestudent-api`) and Docker images → Render.
+
+**Try the API:** Swagger UI https://tadasbulis-practice.github.io/SimpleStudentSystem/ (Test / Production switch) ·
+Test `https://xkkzlqedgvztdlvgerbu.supabase.co/functions/v1/simplestudent-api/api/students` ·
+Production `https://ptkcvmldafnczhrixvcf.supabase.co/functions/v1/simplestudent-api/api/students` (read-only)
 
 | Guide | EN | LT |
 |---|---|---|
