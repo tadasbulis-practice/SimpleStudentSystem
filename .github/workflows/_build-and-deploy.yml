@@ -1,14 +1,20 @@
-# Reusable workflow: builds a Docker image for every project of the lab, pushes it to
-# GitHub Container Registry (ghcr.io) and – if a deploy hook is configured – deploys it to Render.
+# Reusable workflow – one release of SimpleStudentSystem into ONE environment:
 #
-# Called by deploy-test.yml (release/vX.Y.Z → environment "test")
-#       and deploy-production.yml (tag vX.Y.Z on main → environment "production").
+#   1. database  – Supabase: apply new migrations (supabase/migrations) + demo data (supabase/seed.sql)
+#   2. image     – Docker image of every project → GitHub Container Registry (ghcr.io)
+#                  → if a deploy hook is configured: deploy to Render
 #
+# Called by deploy-test.yml       (release/vX.Y.Z      → environment "test"       → Supabase "SimpleStudent System Test")
+#       and deploy-production.yml (tag vX.Y.Z on main  → environment "production" → Supabase "SimpleStudentSystem")
+#
+# The database is migrated FIRST, so new code never runs against an old table.
 # The SAME image is used in every environment ("build once, run anywhere"); only the settings
 # in the hosting dashboard differ: database connection, API URL of the frontends, APP_ENVIRONMENT.
 #
-# A project is deployed only when its secret (e.g. RENDER_HOOK_NODEAPI) exists in the GitHub
-# environment. Without the secret the image is still built and pushed – ready for Azure / Render later.
+# Everything is optional per environment – a missing secret is skipped with a notice:
+#   SUPABASE_DB_URL      secret   Session pooler URI of the Supabase project (with the password)
+#   SUPABASE_PROJECT_REF variable e.g. xkkzlqedgvztdlvgerbu – only for links in the run summary
+#   RENDER_HOOK_*        secret   Render deploy hook of one service
 
 name: build-and-deploy (reusable)
 
@@ -28,17 +34,65 @@ on:
         required: true
         type: string
       lab_dir:
-        description: Folder of the lab inside the repository
-        required: true
+        description: Folder with the projects inside the repository ("." = repository root)
+        required: false
         type: string
+        default: "."
 
 permissions:
   contents: read
   packages: write          # push images to ghcr.io with the built-in GITHUB_TOKEN
 
+env:
+  SUPABASE_CLI_VERSION: 3.1.0   # pinned: the same CLI version locally and in CI
+
 jobs:
+  database:
+    name: Supabase database (${{ inputs.environment }})
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v4
+
+      - name: Set up Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: ${{ env.SUPABASE_CLI_VERSION }}
+
+      - name: Apply migrations + seed to Supabase (${{ inputs.environment }})
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
+          PGSSLMODE: require          # Supabase: never connect unencrypted
+        working-directory: ${{ inputs.lab_dir }}
+        run: |
+          if [ -z "$SUPABASE_DB_URL" ]; then
+            echo "::notice title=Supabase::No secret SUPABASE_DB_URL in environment '${{ inputs.environment }}' - database not migrated."
+            echo "### Supabase (${{ inputs.environment }}): skipped – no SUPABASE_DB_URL" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          echo "Migrations in the repository:"
+          ls -1 supabase/migrations
+          # --remote=<url> : the database from the secret (no `supabase link`, no access token needed)
+          # --include-seed : supabase/seed.sql (only once per project / when the file changes)
+          # --yes          : no interactive question in CI
+          supabase db push --remote="$SUPABASE_DB_URL" --include-seed --yes
+          {
+            echo "### Supabase (${{ inputs.environment }}): migrations applied"
+            echo
+            echo "| Migration file |"
+            echo "|---|"
+            ls -1 supabase/migrations | sed 's/^/| /; s/$/ |/'
+            if [ -n "$PROJECT_REF" ]; then
+              echo
+              echo "Table Editor: https://supabase.com/dashboard/project/${PROJECT_REF}/editor"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
   image:
     name: ${{ matrix.project }}
+    needs: database        # first the database, then the code that uses it
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     strategy:
@@ -59,7 +113,7 @@ jobs:
 
       - name: Image name
         id: img
-        # ghcr.io names must be lowercase: ghcr.io/tadasbulis-practice/ps-5-nodeapi
+        # ghcr.io names must be lowercase: ghcr.io/tadasbulis-practice/simplestudentsystem-nodeapi
         run: |
           owner="${GITHUB_REPOSITORY_OWNER,,}"
           repo="${GITHUB_REPOSITORY#*/}"
