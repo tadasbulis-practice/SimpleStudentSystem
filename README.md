@@ -1,6 +1,6 @@
 # SimpleStudentSystem
 
-Kauno kolegija · Vidaus praktika (PS-4 / PSe-4) – a complete, working reference system:
+Kauno kolegija · Vidaus praktika (PS-4 / PSe-4), Kursinis projektas (Heterogeninė sistema; PS-5, PSe-5) – a complete, working reference system:
 **one OpenAPI contract, four APIs, five clients (web + Flutter mobile), local Docker databases and
 Supabase PostgreSQL in the cloud, with automatic Test / Production deployment.**
 
