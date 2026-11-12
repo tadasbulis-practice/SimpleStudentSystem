@@ -1,0 +1,45 @@
+@page
+@model SimpleStudentFrontend.Pages.StudentModel
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Student details</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; background: #f5f7fb; color: #222; }
+        .card { max-width: 640px; background: white; border-radius: 12px; padding: 28px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+        h1 { margin-top: 0; }
+        .label { font-weight: bold; display: inline-block; width: 160px; }
+        .row { margin: 10px 0; }
+        .error { color: #b00020; font-weight: bold; }
+        .meta { color: #555; margin-top: 24px; font-size: 14px; }
+        .btn { padding: 6px 14px; border-radius: 6px; font-size: 13px; text-decoration: none; display: inline-block; background: #1a73e8; color: white; }
+    </style>
+</head>
+<body>
+<div class="card">
+    <partial name="_Nav" />
+    <h1>Student details</h1>
+
+    @if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
+    {
+        <p class="error">Error: @Model.ErrorMessage</p>
+    }
+    else if (Model.Student is not null)
+    {
+        <div class="row"><span class="label">ID:</span> @Model.Student.Id</div>
+        <div class="row"><span class="label">First name:</span> @Model.Student.FirstName</div>
+        <div class="row"><span class="label">Last name:</span> @Model.Student.LastName</div>
+        <div class="row"><span class="label">Email:</span> @Model.Student.Email</div>
+        <div class="row"><span class="label">Study program:</span> @Model.Student.StudyProgram</div>
+        <div class="row"><span class="label">Enrollment year:</span> @Model.Student.EnrollmentYear</div>
+        <p><a class="btn" href="/StudentEdit?id=@Model.Student.Id">Edit</a></p>
+    }
+
+    <div class="meta">
+        Data comes from <code>GET /api/students/{id}</code> via the generated <code>IStudentApiClient.GetStudentAsync(id)</code>.
+    </div>
+</div>
+</body>
+</html>

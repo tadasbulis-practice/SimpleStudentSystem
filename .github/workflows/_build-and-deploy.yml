@@ -1,0 +1,108 @@
+# Reusable workflow: builds a Docker image for every project of the lab, pushes it to
+# GitHub Container Registry (ghcr.io) and – if a deploy hook is configured – deploys it to Render.
+#
+# Called by deploy-test.yml (release/vX.Y.Z → environment "test")
+#       and deploy-production.yml (tag vX.Y.Z on main → environment "production").
+#
+# The SAME image is used in every environment ("build once, run anywhere"); only the settings
+# in the hosting dashboard differ: database connection, API URL of the frontends, APP_ENVIRONMENT.
+#
+# A project is deployed only when its secret (e.g. RENDER_HOOK_NODEAPI) exists in the GitHub
+# environment. Without the secret the image is still built and pushed – ready for Azure / Render later.
+
+name: build-and-deploy (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: GitHub environment with the secrets (test | production)
+        required: true
+        type: string
+      version:
+        description: Image tag, e.g. 1.3.0-rc.12 (test) or 1.3.0 (production)
+        required: true
+        type: string
+      channel:
+        description: Moving tag that always points to the newest image of this environment (test | latest)
+        required: true
+        type: string
+      lab_dir:
+        description: Folder of the lab inside the repository
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: write          # push images to ghcr.io with the built-in GITHUB_TOKEN
+
+jobs:
+  image:
+    name: ${{ matrix.project }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    strategy:
+      fail-fast: false     # one broken project must not stop the others
+      matrix:
+        include:
+          # project = folder with the Dockerfile, image = short image name, hook = secret with the Render deploy hook
+          - { project: SimpleStudentApi,         image: dotnetapi,      hook: RENDER_HOOK_DOTNETAPI }
+          - { project: SimpleStudentPhpApi,      image: phpapi,         hook: RENDER_HOOK_PHPAPI }
+          - { project: SimpleStudentPythonApi,   image: pythonapi,      hook: RENDER_HOOK_PYTHONAPI }
+          - { project: SimpleStudentNodeApi,     image: nodeapi,        hook: RENDER_HOOK_NODEAPI }
+          - { project: SimpleStudentFrontend,    image: dotnetfrontend, hook: RENDER_HOOK_DOTNETFRONTEND }
+          - { project: SimpleStudentPhpFrontend, image: phpfrontend,    hook: RENDER_HOOK_PHPFRONTEND }
+
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v4
+
+      - name: Image name
+        id: img
+        # ghcr.io names must be lowercase: ghcr.io/tadasbulis-practice/ps-5-nodeapi
+        run: |
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          repo="${GITHUB_REPOSITORY#*/}"
+          echo "name=ghcr.io/${owner}/${repo,,}-${{ matrix.image }}" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push ${{ steps.img.outputs.name }}:${{ inputs.version }}
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ inputs.lab_dir }}/${{ matrix.project }}
+          platforms: linux/amd64
+          push: true
+          build-args: APP_VERSION=${{ inputs.version }}
+          tags: |
+            ${{ steps.img.outputs.name }}:${{ inputs.version }}
+            ${{ steps.img.outputs.name }}:${{ inputs.channel }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.version=${{ inputs.version }}
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+
+      - name: Deploy to Render (${{ inputs.environment }})
+        env:
+          DEPLOY_HOOK: ${{ secrets[matrix.hook] }}
+          IMAGE: ${{ steps.img.outputs.name }}:${{ inputs.version }}
+        run: |
+          if [ -z "$DEPLOY_HOOK" ]; then
+            echo "::notice title=${{ matrix.project }}::No secret ${{ matrix.hook }} in environment '${{ inputs.environment }}' - image pushed, not deployed."
+            echo "| ${{ matrix.project }} | \`$IMAGE\` | built only |" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          # The deploy hook URL already contains ?key=... ; imgURL tells Render which image tag to run
+          img_url=$(jq -rn --arg v "$IMAGE" '$v|@uri')
+          curl --fail --silent --show-error -X POST "${DEPLOY_HOOK}&imgURL=${img_url}"
+          echo
+          echo "| ${{ matrix.project }} | \`$IMAGE\` | deployed to Render (${{ inputs.environment }}) |" >> "$GITHUB_STEP_SUMMARY"

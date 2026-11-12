@@ -1,0 +1,89 @@
+@page
+@model SimpleStudentFrontend.Pages.StudentsModel
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Students</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; background: #f5f7fb; color: #222; }
+        .card { max-width: 960px; background: white; border-radius: 12px; padding: 28px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+        h1 { margin-top: 0; }
+        nav a { margin-right: 16px; color: #1a73e8; text-decoration: none; font-size: 14px; }
+        nav a:hover { text-decoration: underline; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th { background: #f0f4ff; text-align: left; padding: 10px 14px; border-bottom: 2px solid #d0d8f0; }
+        td { padding: 10px 14px; border-bottom: 1px solid #eee; vertical-align: middle; }
+        tr:hover td { background: #f9faff; }
+        .btn { padding: 6px 14px; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; text-decoration: none; display: inline-block; }
+        .btn-view { background: #eef2f8; color: #1a3d7c; }
+        .btn-view:hover { background: #dde5f2; }
+        .btn-edit { background: #1a73e8; color: white; }
+        .btn-edit:hover { background: #1558b0; }
+        .btn-delete { background: #d93025; color: white; }
+        .btn-delete:hover { background: #a0221c; }
+        .btn-create { background: #0a7d2c; color: white; padding: 8px 18px; font-size: 14px; }
+        .btn-create:hover { background: #075c20; }
+        .error { color: #b00020; font-weight: bold; }
+        .empty { color: #888; margin-top: 20px; }
+    </style>
+</head>
+<body>
+<div class="card">
+    <partial name="_Nav" />
+
+    <h1>Students</h1>
+
+    @if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
+    {
+        <p class="error">Error: @Model.ErrorMessage</p>
+    }
+
+    <a class="btn btn-create" href="/StudentCreate">+ Add Student</a>
+
+    @if (Model.Students.Count == 0 && string.IsNullOrWhiteSpace(Model.ErrorMessage))
+    {
+        <p class="empty">No students found. Add one above!</p>
+    }
+    else
+    {
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>First Name</th>
+                    <th>Last Name</th>
+                    <th>Email</th>
+                    <th>Study Program</th>
+                    <th>Enrollment Year</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var s in Model.Students)
+                {
+                    <tr>
+                        <td>@s.Id</td>
+                        <td>@s.FirstName</td>
+                        <td>@s.LastName</td>
+                        <td>@s.Email</td>
+                        <td>@s.StudyProgram</td>
+                        <td>@s.EnrollmentYear</td>
+                        <td>
+                            <a class="btn btn-view" href="/Student?id=@s.Id">View</a>
+                            <a class="btn btn-edit" href="/StudentEdit?id=@s.Id">Edit</a>
+                            <form method="post" asp-page-handler="Delete" style="display:inline"
+                                  onsubmit="return confirm('Delete @s.FirstName @s.LastName?')">
+                                <input type="hidden" name="id" value="@s.Id" />
+                                <button type="submit" class="btn btn-delete">Delete</button>
+                            </form>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</div>
+</body>
+</html>

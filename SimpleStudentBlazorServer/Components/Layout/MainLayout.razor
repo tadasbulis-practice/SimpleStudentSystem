@@ -1,0 +1,13 @@
+@inherits LayoutComponentBase
+
+<div class="card">
+    <nav>
+        <span class="brand">Blazor <small>Server</small></span>
+        <NavLink href="" Match="NavLinkMatch.All">Info</NavLink>
+        <NavLink href="students">Students</NavLink>
+        <NavLink href="faculty">Faculty</NavLink>
+        <ApiSwitcher />
+    </nav>
+
+    @Body
+</div>

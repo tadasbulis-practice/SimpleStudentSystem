@@ -1,0 +1,49 @@
+# TEST environment – classic gitflow:
+#
+#   git flow release start 1.3.0        → creates branch release/v1.3.0 (or: git checkout -b release/v1.3.0 develop)
+#   git push -u origin release/v1.3.0   → THIS workflow: build images 1.3.0-rc.<run> and deploy them to "test"
+#   fixes committed / merged into release/v1.3.0 and pushed → deployed to "test" again
+#
+# The version comes from the branch name: release/v1.3.0 → 1.3.0 (release/1.3.0 works too).
+
+name: deploy-test
+
+on:
+  push:
+    branches:
+      - 'release/**'          # every push to a release branch (also the first one, when the branch is created)
+  workflow_dispatch:           # "Run workflow" button – choose a release branch
+
+concurrency:
+  group: deploy-test           # never two deployments to the same environment at once
+  cancel-in-progress: false
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - name: Version from the branch name
+        id: v
+        run: |
+          if [[ "$GITHUB_REF_NAME" =~ ^release/v?([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+            echo "version=${BASH_REMATCH[1]}-rc.${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+            echo "Release candidate: ${BASH_REMATCH[1]}-rc.${GITHUB_RUN_NUMBER}"
+          else
+            echo "::error::Branch '$GITHUB_REF_NAME' is not release/vX.Y.Z (example: release/v1.3.0)"
+            exit 1
+          fi
+
+  deploy:
+    needs: version
+    uses: ./.github/workflows/_build-and-deploy.yml
+    with:
+      environment: test
+      version: ${{ needs.version.outputs.version }}
+      channel: test
+      lab_dir: Swagger-integration/student-docker-lab-plus-mssql   # folder of the lab in THIS repository
+    secrets: inherit
+    permissions:
+      contents: read
+      packages: write

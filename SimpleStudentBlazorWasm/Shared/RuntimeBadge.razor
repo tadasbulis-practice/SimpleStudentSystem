@@ -1,0 +1,12 @@
+@* Shows WHERE this C# code is running – the main difference between the Blazor render modes. *@
+<div class="runtime">
+    @if (OperatingSystem.IsBrowser())
+    {
+        <span>This C# code runs <strong>in your browser</strong> (WebAssembly). The browser calls the API directly.</span>
+    }
+    else
+    {
+        <span>This C# code runs <strong>on the server</strong> (@RuntimeInformation.OSDescription).
+              The browser only receives UI updates over SignalR; the server calls the API.</span>
+    }
+</div>

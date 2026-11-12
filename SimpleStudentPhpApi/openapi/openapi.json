@@ -1,0 +1,419 @@
+{
+  "openapi": "3.0.4",
+  "info": {
+    "title": "SimpleStudentPhpApi",
+    "description": "The same Student CRUD contract as SimpleStudentApi (.NET), implemented in plain PHP. Database: MySQL/MariaDB (XAMPP) or SQL Server (Docker), chosen in config.php. This file is written by hand (contract-first) – the PHP code validates requests against it.",
+    "version": "v1"
+  },
+  "paths": {
+    "/api/faculty": {
+      "get": {
+        "tags": [
+          "Faculty"
+        ],
+        "summary": "Faculty → groups → students",
+        "description": "Groups students by study program and enrollment year, e.g. \"CS-24\" for Computer Science 2024.",
+        "operationId": "GetFaculty",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacultyResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/info": {
+      "get": {
+        "tags": [
+          "Info"
+        ],
+        "summary": "Service information",
+        "description": "Returns basic information about the API, including which database driver is used.",
+        "operationId": "GetInfo",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InfoResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/students": {
+      "get": {
+        "tags": [
+          "Students"
+        ],
+        "summary": "List all students",
+        "operationId": "GetStudents",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Student"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Students"
+        ],
+        "summary": "Create a new student",
+        "description": "The `id` in the request body is ignored – SQL Server generates it. Returns the created student with its new ID.",
+        "operationId": "CreateStudent",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Student"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Student"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/students/{id}": {
+      "get": {
+        "tags": [
+          "Students"
+        ],
+        "summary": "Get one student by ID",
+        "operationId": "GetStudent",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Student"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Students"
+        ],
+        "summary": "Update an existing student",
+        "operationId": "UpdateStudent",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Student"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Student"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Students"
+        ],
+        "summary": "Delete a student",
+        "operationId": "DeleteStudent",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "FacultyResponse": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "groups": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GroupResponse"
+            }
+          }
+        },
+        "additionalProperties": false,
+        "description": "Response DTOs for the GET /api/faculty endpoint.\nThese are NOT EF entities — they are pure output shapes."
+      },
+      "GroupResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "studyProgram": {
+            "type": "string"
+          },
+          "enrollmentYear": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "students": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Student"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "HttpValidationProblemDetails": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "nullable": true
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "detail": {
+            "type": "string",
+            "nullable": true
+          },
+          "instance": {
+            "type": "string",
+            "nullable": true
+          },
+          "errors": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "additionalProperties": {}
+      },
+      "InfoResponse": {
+        "type": "object",
+        "properties": {
+          "service": {
+            "type": "string",
+            "example": "SimpleStudentApi"
+          },
+          "version": {
+            "type": "string",
+            "example": "1.2"
+          },
+          "status": {
+            "type": "string",
+            "description": "\"ok\" when the service is healthy.",
+            "example": "ok"
+          },
+          "message": {
+            "type": "string",
+            "example": "Student CRUD API with SQL Server"
+          },
+          "environment": {
+            "type": "string",
+            "description": "ASP.NET Core environment (Development / Production).",
+            "example": "Production"
+          },
+          "endpoints": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Main endpoints of this API."
+          },
+          "timestampUtc": {
+            "type": "string",
+            "description": "Server time in UTC.",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Basic information about the running API."
+      },
+      "Student": {
+        "required": [
+          "email",
+          "firstName",
+          "lastName",
+          "studyProgram"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "Database ID (generated by SQL Server; ignored when creating).",
+            "format": "int32",
+            "readOnly": true,
+            "example": 1
+          },
+          "firstName": {
+            "maxLength": 100,
+            "minLength": 0,
+            "type": "string",
+            "description": "First name.",
+            "example": "Jonas"
+          },
+          "lastName": {
+            "maxLength": 100,
+            "minLength": 0,
+            "type": "string",
+            "description": "Last name.",
+            "example": "Jonaitis"
+          },
+          "email": {
+            "maxLength": 200,
+            "minLength": 0,
+            "type": "string",
+            "description": "University email address.",
+            "format": "email",
+            "example": "jonas@university.lt"
+          },
+          "studyProgram": {
+            "maxLength": 100,
+            "minLength": 0,
+            "type": "string",
+            "description": "Study program, e.g. Computer Science.",
+            "example": "Computer Science"
+          },
+          "enrollmentYear": {
+            "maximum": 2100,
+            "minimum": 2000,
+            "type": "integer",
+            "description": "Year the student started studying (2000–2100).",
+            "format": "int32",
+            "example": 2024
+          }
+        },
+        "additionalProperties": false,
+        "description": "A student stored in the SQL Server table `Students`."
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "Faculty"
+    },
+    {
+      "name": "Info"
+    },
+    {
+      "name": "Students"
+    }
+  ]
+}

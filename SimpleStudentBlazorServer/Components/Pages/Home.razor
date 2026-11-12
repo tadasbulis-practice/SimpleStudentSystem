@@ -1,0 +1,64 @@
+@page "/"
+@implements IDisposable
+@inject ApiConnection Api
+
+<PageTitle>Info – Blazor Server</PageTitle>
+
+<h1>Simple Student – Blazor Server</h1>
+<p>The same Students API as the Razor Pages and PHP frontends, but built from <strong>Blazor components</strong>.</p>
+
+<RuntimeBadge />
+
+@if (_error is not null)
+{
+    <p class="error">Error: @_error</p>
+}
+else if (_info is null)
+{
+    <p>Loading…</p>
+}
+else
+{
+    <div class="row"><span class="label">Service:</span> @_info.Service</div>
+    <div class="row"><span class="label">Version:</span> @_info.Version</div>
+    <div class="row"><span class="label">Status:</span> <span class="ok">@_info.Status</span></div>
+    <div class="row"><span class="label">Message:</span> @_info.Message</div>
+    <div class="row"><span class="label">Environment:</span> @_info.Environment</div>
+    <div class="row"><span class="label">Timestamp UTC:</span> @_info.TimestampUtc.ToString("u")</div>
+    <div class="row"><span class="label">Endpoints:</span> @string.Join(", ", _info.Endpoints ?? new List<string>())</div>
+}
+
+<p class="meta">
+    Selected API: <strong>@Api.Current.Name</strong> – called from the server at <code>@Api.Current.BaseUrl/api/info</code>
+    with the typed client generated from Swagger (<code>IStudentApiClient.GetInfoAsync()</code>).<br />
+    Switch the API at the top right: the service name changes, the page does not reload.
+</p>
+
+@code {
+    private InfoResponse? _info;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Api.Changed += OnApiChanged;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _info = null;
+        _error = null;
+        try
+        {
+            _info = await Api.Client.GetInfoAsync();          // GET /api/info
+        }
+        catch (Exception ex)
+        {
+            _error = ApiErrors.ToMessage(ex);
+        }
+    }
+
+    private void OnApiChanged() => InvokeAsync(async () => { await LoadAsync(); StateHasChanged(); });
+
+    public void Dispose() => Api.Changed -= OnApiChanged;
+}

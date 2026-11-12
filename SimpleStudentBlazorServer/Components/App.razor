@@ -1,0 +1,22 @@
+@* The HTML shell of the whole app. Everything inside <Routes> is a Blazor component. *@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <base href="/" />
+    <link rel="stylesheet" href="app.css" />
+    <HeadOutlet @rendermode="RenderModeServer" />
+</head>
+<body>
+    @* Render mode for ALL pages: Interactive Server.
+       prerender: false – the page is built only once, after the SignalR connection is open
+       (with prerendering every page would call the API twice). *@
+    <Routes @rendermode="RenderModeServer" />
+    <script src="_framework/blazor.web.js"></script>
+</body>
+</html>
+
+@code {
+    private static readonly IComponentRenderMode RenderModeServer = new InteractiveServerRenderMode(prerender: false);
+}

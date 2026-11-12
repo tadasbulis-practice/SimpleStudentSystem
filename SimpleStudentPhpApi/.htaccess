@@ -1,0 +1,18 @@
+# Apache (XAMPP and the Docker image)
+DirectoryIndex index.php
+Options -Indexes
+
+# Send every URL that is not a real file to index.php:  /api/students → index.php
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteRule ^ index.php [QSA,L]
+</IfModule>
+# Without mod_rewrite the API still works with URLs like  .../simpleStudentApi/index.php/api/students
+
+<Files "config.php">
+    Require all denied
+</Files>
+<FilesMatch "^(Dockerfile|README\.md)$">
+    Require all denied
+</FilesMatch>

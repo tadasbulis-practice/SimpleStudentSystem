@@ -1,0 +1,91 @@
+@* Create / edit form.
+   - DataAnnotationsValidator checks the rules that NSwag copied from swagger.json into the
+     generated Student class ([Required], [StringLength], [Range]) – while you type, no round trip.
+   - Errors the API returns (400 ValidationProblem) are shown next to the same fields. *@
+
+@* novalidate: turn off the browser's own HTML5 checks, so Blazor and the API show the errors *@
+<EditForm EditContext="_editContext" OnValidSubmit="SubmitAsync" novalidate>
+    <DataAnnotationsValidator />
+
+    @if (_error is not null)
+    {
+        <p class="error">@_error</p>
+    }
+
+    <div class="field">
+        <label>First name</label>
+        <InputText @bind-Value="Model.FirstName" />
+        <ValidationMessage For="() => Model.FirstName" />
+    </div>
+    <div class="field">
+        <label>Last name</label>
+        <InputText @bind-Value="Model.LastName" />
+        <ValidationMessage For="() => Model.LastName" />
+    </div>
+    <div class="field">
+        <label>Email</label>
+        <InputText @bind-Value="Model.Email" type="email" />
+        <ValidationMessage For="() => Model.Email" />
+    </div>
+    <div class="field">
+        <label>Study program</label>
+        <InputText @bind-Value="Model.StudyProgram" />
+        <ValidationMessage For="() => Model.StudyProgram" />
+    </div>
+    <div class="field">
+        <label>Enrollment year</label>
+        <InputNumber @bind-Value="Model.EnrollmentYear" />
+        <ValidationMessage For="() => Model.EnrollmentYear" />
+    </div>
+
+    <button type="submit" class="btn btn-create" disabled="@_saving">@(_saving ? "Saving…" : "Save")</button>
+    <a class="btn-cancel" href="students">Cancel</a>
+</EditForm>
+
+@code {
+    [Parameter, EditorRequired] public Student Model { get; set; } = default!;
+
+    /// <summary>Calls the API (CreateStudentAsync or UpdateStudentAsync). Exceptions are handled here.</summary>
+    [Parameter, EditorRequired] public Func<Student, Task> Save { get; set; } = default!;
+
+    private EditContext _editContext = default!;
+    private ValidationMessageStore _serverErrors = default!;
+    private string? _error;
+    private bool _saving;
+
+    protected override void OnParametersSet()
+    {
+        _editContext = new EditContext(Model);
+        _serverErrors = new ValidationMessageStore(_editContext);
+        // Typing in a field removes the server error shown for it
+        _editContext.OnFieldChanged += (_, e) => _serverErrors.Clear(e.FieldIdentifier);
+    }
+
+    private async Task SubmitAsync()
+    {
+        _error = null;
+        _serverErrors.Clear();
+        _saving = true;
+        try
+        {
+            await Save(Model);
+        }
+        catch (Exception ex)
+        {
+            // 400 from the API: { "errors": { "firstName": ["First name is required."] } }
+            foreach (var (field, messages) in ApiErrors.FieldErrors(ex))
+            {
+                var property = char.ToUpperInvariant(field[0]) + field[1..];    // firstName → FirstName
+                _serverErrors.Add(_editContext.Field(property), messages);
+            }
+            _error = ApiErrors.FieldErrors(ex).Count > 0
+                ? "The API rejected the data (400 Bad Request) – see the fields below."
+                : ApiErrors.ToMessage(ex);
+            _editContext.NotifyValidationStateChanged();
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+}

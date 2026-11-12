@@ -1,0 +1,79 @@
+**/dgph
+*.mode1v3
+*.mode2v3
+*.moved-aside
+*.pbxuser
+*.perspectivev3
+**/*sync/
+.sconsign.dblite
+.tags*
+**/.vagrant/
+**/DerivedData/
+Icon?
+**/Pods/
+**/.symlinks/
+profile
+xcuserdata
+**/.generated/
+Flutter/App.framework
+Flutter/Flutter.framework
+Flutter/Flutter.podspec
+Flutter/Generated.xcconfig
+Flutter/ephemeral/
+Flutter/app.flx
+Flutter/app.zip
+Flutter/flutter_assets/
+Flutter/flutter_export_environment.sh
+ServiceDefinitions.json
+Runner/GeneratedPluginRegistrant.*
+
+# Exceptions to above rules.
+!default.mode1v3
+!default.mode2v3
+!default.pbxuser
+!default.perspectivev3
+
+# ---------------------------------------------------------------
+# Additional iOS / Xcode rules (on top of the Flutter defaults)
+# ---------------------------------------------------------------
+
+# Xcode user state and build output
+*.xcuserstate
+*.xcscmblueprint
+*.xccheckout
+build/
+**/.build/
+timeline.xctimeline
+playground.xcworkspace
+
+# Swift Package Manager (Flutter SPM integration keeps its packages in Flutter/ephemeral)
+.swiftpm/
+**/xcshareddata/swiftpm/configuration/
+
+# Archives, app bundles and debug symbols
+*.ipa
+*.xcarchive
+*.dSYM
+*.dSYM.zip
+*.app
+
+# Code signing – never commit certificates or provisioning profiles
+*.mobileprovision
+*.provisionprofile
+*.p12
+*.cer
+*.certSigningRequest
+*.p8
+
+# Fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/**/*.png
+fastlane/test_output/
+fastlane/.env*
+
+# Local environment / secrets
+*.local.xcconfig
+.env
+.env.*
+!.env.example

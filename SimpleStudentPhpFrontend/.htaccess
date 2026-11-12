@@ -1,0 +1,10 @@
+# Used by Apache (XAMPP and the Docker image). Only index.php, style.css and openapi/ are public.
+DirectoryIndex index.php
+Options -Indexes
+
+<Files "config.php">
+    Require all denied
+</Files>
+<FilesMatch "^(Dockerfile|README\.md)$">
+    Require all denied
+</FilesMatch>

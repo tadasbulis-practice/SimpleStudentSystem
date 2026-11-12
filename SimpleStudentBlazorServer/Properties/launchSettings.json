@@ -1,0 +1,12 @@
+{
+  "profiles": {
+    "SimpleStudentBlazorServer": {
+      "commandName": "Project",
+      "launchBrowser": true,
+      "applicationUrl": "http://localhost:6031",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      }
+    }
+  }
+}
