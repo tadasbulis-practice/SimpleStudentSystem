@@ -1,0 +1,176 @@
+# =============================================================================
+#  student-docker-lab-plus-mssql – .gitignore for every project type in here:
+#  .NET (SimpleStudentApi, SimpleStudentFrontend), PHP (SimpleStudentPhpApi,
+#  SimpleStudentPhpFrontend), Flutter/Dart (SimpleStudentMobile: Android + iOS),
+#  Docker, IDEs and operating systems.
+#  Patterns without a leading "/" work in every subfolder, so this file can be
+#  copied together with the folder into any repository.
+# =============================================================================
+
+# ---------- Operating systems ----------
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+
+# ---------- IDEs / editors ----------
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.vsidx
+*.rsuser
+# JetBrains (Rider, PhpStorm, Android Studio, IntelliJ)
+.idea/
+*.iml
+*.ipr
+*.iws
+# VS Code – keep shared settings, ignore personal ones
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.history/
+# Others
+*.swp
+*.swo
+.atom/
+*.sublime-workspace
+
+# ---------- .NET / C# ----------
+bin/
+obj/
+[Ll]og/
+[Ll]ogs/
+TestResults/
+*.trx
+*.coverage
+coverage*.json
+coverage*.xml
+publish/
+*.nupkg
+*.snupkg
+.nuget/
+project.lock.json
+artifacts/
+# Local secrets / overrides (appsettings.json and appsettings.Development.json stay in git)
+appsettings.*.local.json
+secrets.json
+
+# ---------- PHP ----------
+vendor/
+composer.phar
+.phpunit.result.cache
+.phpunit.cache/
+.php-cs-fixer.cache
+.php_cs.cache
+phpstan.neon.local
+*.sqlite
+*.sqlite3
+# environment files with passwords
+.env
+.env.*
+!.env.example
+
+# ---------- Node.js ----------
+node_modules/
+npm-debug.log*
+
+# ---------- Flutter / Dart ----------
+.dart_tool/
+.packages
+.pub-cache/
+.pub/
+.flutter-plugins
+.flutter-plugins-dependencies
+**/doc/api/
+build/
+coverage/
+migrate_working_dir/
+app.*.symbols
+app.*.map.json
+
+# ---------- Android (Gradle / Android Studio) ----------
+.gradle/
+.cxx/
+.externalNativeBuild/
+captures/
+local.properties
+**/android/app/debug
+**/android/app/profile
+**/android/app/release
+**/android/key.properties
+*.jks
+*.keystore
+**/android/**/GeneratedPluginRegistrant.java
+gradle-wrapper.jar
+*.apk
+*.aab
+
+# ---------- iOS / Xcode / CocoaPods / SwiftPM ----------
+DerivedData/
+xcuserdata/
+*.xcuserstate
+*.xccheckout
+*.moved-aside
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+Pods/
+.symlinks/
+.swiftpm/
+.build/
+**/ios/Flutter/.last_build_id
+**/ios/Flutter/App.framework
+**/ios/Flutter/Flutter.framework
+**/ios/Flutter/Flutter.podspec
+**/ios/Flutter/Generated.xcconfig
+**/ios/Flutter/ephemeral/
+**/ios/Flutter/app.flx
+**/ios/Flutter/app.zip
+**/ios/Flutter/flutter_assets/
+**/ios/Flutter/flutter_export_environment.sh
+**/ios/Runner/GeneratedPluginRegistrant.*
+**/ios/ServiceDefinitions.json
+
+# ---------- Docker ----------
+docker-compose.override.yml
+*.tar
+
+# ---------- Logs / temp ----------
+*.log
+*.tmp
+*.temp
+*.bak
+*.cache
+tmp/
+temp/
+
+# ---------- Course-specific ----------
+# old files kept locally, not for students
+_to_delete/
+
+# ---------- Supabase CLI ----------
+supabase/.temp/
+supabase/.branches/
+supabase/.env

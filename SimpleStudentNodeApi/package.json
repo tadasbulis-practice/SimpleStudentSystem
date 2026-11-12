@@ -1,0 +1,23 @@
+{
+  "name": "simple-student-node-api",
+  "version": "1.2.0",
+  "description": "SimpleStudentApi contract implemented in Node.js + Express. Database: SQL Server or PostgreSQL (DB_DRIVER).",
+  "type": "module",
+  "main": "src/server.js",
+  "private": true,
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js"
+  },
+  "engines": {
+    "node": ">=18.18"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^5.1.0",
+    "mssql": "^11.0.1",
+    "pg": "^8.13.1",
+    "swagger-ui-express": "^5.0.1"
+  }
+}

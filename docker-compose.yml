@@ -1,0 +1,185 @@
+networks:
+  student-net:
+    external: true  # created and owned by docker-compose.infra.yml
+
+services:
+  simplestudentapi:
+    build:
+      context: ./SimpleStudentApi
+    container_name: simplestudentapi
+    environment:
+      ASPNETCORE_HTTP_PORTS: 8080
+      ConnectionStrings__DefaultConnection: "Server=mssqlserver,1433;Database=StudentDb;User Id=sa;Password=1Secure*Password1;TrustServerCertificate=True"
+    ports:
+      - "6001:8080"
+    networks:
+      - student-net
+
+  simplestudentfrontend:
+    build:
+      context: ./SimpleStudentFrontend
+    container_name: simplestudentfrontend
+    environment:
+      ASPNETCORE_HTTP_PORTS: 8080
+      ApiSettings__BaseUrl: http://simplestudentapi:8080   # container → container (server side)
+      ApiSettings__PublicUrl: http://localhost:6001        # browser → API (Swagger link)
+      ApiSettings__PhpFrontendUrl: http://localhost:6021   # browser → PHP frontend (nav link)
+    ports:
+      - "6011:8080"
+    networks:
+      - student-net
+    depends_on:
+      - simplestudentapi
+
+  # Second client in another technology. It reads swagger.json and calls the API by operationId.
+  simplestudentphpfrontend:
+    build:
+      context: ./SimpleStudentPhpFrontend
+    container_name: simplestudentphpfrontend
+    environment:
+      API_BASE_URL: http://simplestudentapi:8080           # container → container (server side)
+                                                           # PHP API instead: http://simplestudentphpapi
+      API_PUBLIC_URL: http://localhost:6001                # browser → API (Swagger link)
+      DOTNET_FRONTEND_URL: http://localhost:6011           # browser → .NET frontend (nav link)
+    ports:
+      - "6021:80"
+    networks:
+      - student-net
+    depends_on:
+      - simplestudentapi
+
+  # The same API contract implemented in PHP. Database chosen with DB_DRIVER (sqlsrv | mysql).
+  simplestudentphpapi:
+    build:
+      context: ./SimpleStudentPhpApi
+    container_name: simplestudentphpapi
+    environment:
+      DB_DRIVER: sqlsrv                 # SQL Server container (same database as the .NET API)
+      DB_HOST: mssqlserver
+      DB_PORT: "1433"
+      DB_NAME: StudentDb
+      DB_USER: sa
+      DB_PASSWORD: "1Secure*Password1"
+      APP_ENVIRONMENT: Docker
+      # --- or use the MySQL of XAMPP on your computer instead (run database/mysql/create-user.sql first):
+      # DB_DRIVER: mysql
+      # DB_HOST: host.docker.internal
+      # DB_PORT: "3306"
+      # DB_USER: student_api
+      # DB_PASSWORD: "StudentApi*2026"
+    ports:
+      - "6002:80"
+    networks:
+      - student-net
+    depends_on:
+      - simplestudentapi                # the .NET API creates StudentDb + Students on start-up
+
+  # The same API contract implemented in Python (FastAPI). Database chosen with DB_DRIVER (sqlsrv | mysql | sqlite).
+  simplestudentpythonapi:
+    build:
+      context: ./SimpleStudentPythonApi
+    container_name: simplestudentpythonapi
+    environment:
+      DB_DRIVER: sqlsrv                 # SQL Server container (same database as the .NET and PHP APIs)
+      DB_HOST: mssqlserver
+      DB_PORT: "1433"
+      DB_NAME: StudentDb
+      DB_USER: sa
+      DB_PASSWORD: "1Secure*Password1"
+      APP_ENVIRONMENT: Docker
+      # --- or use the MySQL of XAMPP on your computer instead (run database/mysql/create-user.sql first):
+      # DB_DRIVER: mysql
+      # DB_HOST: host.docker.internal
+      # DB_PORT: "3306"
+      # DB_USER: student_api
+      # DB_PASSWORD: "StudentApi*2026"
+    ports:
+      - "6003:8080"
+    networks:
+      - student-net
+    depends_on:
+      - simplestudentapi                # the .NET API creates StudentDb + Students on start-up
+
+  # The same API contract implemented in Node.js (Express). Database chosen with DB_DRIVER (sqlsrv | postgres).
+  # Instance 1: SQL Server container (same database as the .NET, PHP and Python APIs)
+  simplestudentnodeapi:
+    build:
+      context: ./SimpleStudentNodeApi
+    container_name: simplestudentnodeapi
+    environment:
+      DB_DRIVER: sqlsrv
+      DB_HOST: mssqlserver
+      DB_PORT: "1433"
+      DB_NAME: StudentDb
+      DB_USER: sa
+      DB_PASSWORD: "1Secure*Password1"
+      APP_ENVIRONMENT: Docker
+    ports:
+      - "6004:8080"
+    networks:
+      - student-net
+
+  # Instance 2: the SAME image, only the configuration is different → PostgreSQL container
+  # (start it first: docker-compose -f docker-compose.postgres.yml up -d)
+  simplestudentnodeapi-pg:
+    build:
+      context: ./SimpleStudentNodeApi
+    container_name: simplestudentnodeapi-pg
+    environment:
+      DB_DRIVER: postgres
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_NAME: StudentDb
+      DB_USER: postgres
+      DB_PASSWORD: "1Secure*Password1"
+      APP_ENVIRONMENT: Docker
+    ports:
+      - "6005:8080"
+    networks:
+      - student-net
+
+  # Frontend in Blazor, render mode Interactive Server: components run in this container,
+  # the browser gets UI updates over SignalR. The SERVER calls the APIs → Docker service names.
+  simplestudentblazorserver:
+    build:
+      context: ./SimpleStudentBlazorServer
+    container_name: simplestudentblazorserver
+    environment:
+      ASPNETCORE_HTTP_PORTS: 8080
+      Backends__0__Name: ".NET"
+      Backends__0__BaseUrl: http://simplestudentapi:8080           # container → container (server side)
+      Backends__0__PublicUrl: http://localhost:6001                # browser → API (Swagger link)
+      Backends__1__Name: "PHP"
+      Backends__1__BaseUrl: http://simplestudentphpapi
+      Backends__1__PublicUrl: http://localhost:6002
+      Backends__2__Name: "Python"
+      Backends__2__BaseUrl: http://simplestudentpythonapi:8080
+      Backends__2__PublicUrl: http://localhost:6003
+      Backends__3__Name: "PHP (XAMPP)"
+      Backends__3__BaseUrl: http://host.docker.internal:8080/simpleStudentApi/   # container → XAMPP on your computer
+      Backends__3__PublicUrl: http://localhost:8080/simpleStudentApi/
+      Backends__4__Name: "Node.js (SQL Server)"
+      Backends__4__BaseUrl: http://simplestudentnodeapi:8080
+      Backends__4__PublicUrl: http://localhost:6004
+      Backends__5__Name: "Node.js (PostgreSQL)"
+      Backends__5__BaseUrl: http://simplestudentnodeapi-pg:8080
+      Backends__5__PublicUrl: http://localhost:6005
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # needed on Linux; Docker Desktop (macOS/Windows) has it built in
+    ports:
+      - "6031:8080"
+    networks:
+      - student-net
+    depends_on:
+      - simplestudentapi
+
+  # Frontend in Blazor WebAssembly: nginx only serves static files, the C# code runs in the BROWSER
+  # and calls the APIs directly at localhost:6001/6002/6003 (see wwwroot/appsettings.json) – needs CORS.
+  simplestudentblazorwasm:
+    build:
+      context: ./SimpleStudentBlazorWasm
+    container_name: simplestudentblazorwasm
+    ports:
+      - "6041:80"
+    networks:
+      - student-net

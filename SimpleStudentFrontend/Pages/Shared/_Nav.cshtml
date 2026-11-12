@@ -1,0 +1,13 @@
+@inject IConfiguration Config
+@{
+    // Browser-facing API address (host port). Inside Docker the frontend itself uses
+    // ApiSettings:BaseUrl (http://simplestudentapi:8080), but YOUR browser must use localhost:6001.
+    var publicApiUrl = Config["ApiSettings:PublicUrl"] ?? "http://localhost:6001";
+    var phpFrontendUrl = Config["ApiSettings:PhpFrontendUrl"] ?? "http://localhost:6021";
+}
+<nav style="margin-bottom:18px; font-size:14px;">
+    <a href="/" style="margin-right:16px; color:#1a73e8; text-decoration:none;">Info</a>
+    <a href="/Students" style="margin-right:16px; color:#1a73e8; text-decoration:none;">Students</a>
+    <a href="@publicApiUrl/swagger" target="_blank" style="margin-right:16px; color:#1a73e8; text-decoration:none;">API docs (Swagger) ↗</a>
+    <a href="@phpFrontendUrl" target="_blank" style="color:#777bb4; text-decoration:none;">Same data in PHP ↗</a>
+</nav>

@@ -1,0 +1,2 @@
+Swagger UI 5.33.3 (swagger-ui-dist from npm), Apache License 2.0 – see LICENSE.
+Bundled so the API works without internet (e.g. in a classroom).

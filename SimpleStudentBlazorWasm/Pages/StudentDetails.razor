@@ -1,0 +1,57 @@
+@page "/students/{Id:int}"
+@implements IDisposable
+@inject ApiConnection Api
+
+<PageTitle>Student @Id – Blazor WASM</PageTitle>
+
+<h1>Student #@Id</h1>
+
+@if (_error is not null)
+{
+    <p class="error">Error: @_error</p>
+}
+else if (_student is null)
+{
+    <p>Loading…</p>
+}
+else
+{
+    <div class="row"><span class="label">First name:</span> @_student.FirstName</div>
+    <div class="row"><span class="label">Last name:</span> @_student.LastName</div>
+    <div class="row"><span class="label">Email:</span> @_student.Email</div>
+    <div class="row"><span class="label">Study program:</span> @_student.StudyProgram</div>
+    <div class="row"><span class="label">Enrollment year:</span> @_student.EnrollmentYear</div>
+    <p><a class="btn btn-edit" href="students/@Id/edit">Edit</a></p>
+}
+<p><a href="students">← Back to Students</a></p>
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private Student? _student;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Api.Changed += OnApiChanged;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _student = null;
+        _error = null;
+        try
+        {
+            _student = await Api.Client.GetStudentAsync(Id);                 // GET /api/students/{id}
+        }
+        catch (Exception ex)
+        {
+            _error = ApiErrors.ToMessage(ex);
+        }
+    }
+
+    private void OnApiChanged() => InvokeAsync(async () => { await LoadAsync(); StateHasChanged(); });
+
+    public void Dispose() => Api.Changed -= OnApiChanged;
+}

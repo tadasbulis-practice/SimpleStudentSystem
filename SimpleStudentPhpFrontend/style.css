@@ -1,0 +1,39 @@
+/* Same look as the .NET frontend, with a PHP-purple accent so you can tell them apart */
+body { font-family: Arial, sans-serif; margin: 40px; background: #f5f7fb; color: #222; }
+.card { max-width: 1040px; background: white; border-radius: 12px; padding: 28px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+h1 { margin-top: 0; }
+h2 { margin-top: 32px; font-size: 18px; }
+nav { margin-bottom: 18px; font-size: 14px; display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+nav a { color: #1a73e8; text-decoration: none; }
+nav a:hover { text-decoration: underline; }
+.tech { background: #777bb4; color: white; font-weight: bold; padding: 3px 10px; border-radius: 12px; font-size: 12px; }
+table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 14px; }
+th { background: #f1f0fa; text-align: left; padding: 10px 12px; border-bottom: 2px solid #d9d7ee; }
+td { padding: 9px 12px; border-bottom: 1px solid #eee; vertical-align: middle; }
+tr:hover td { background: #faf9ff; }
+.actions { white-space: nowrap; }
+.actions form { display: inline; }
+.btn { padding: 6px 14px; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; text-decoration: none; display: inline-block; }
+.btn-view { background: #eeedf8; color: #3b3d7a; }
+.btn-edit { background: #777bb4; color: white; }
+.btn-delete { background: #d93025; color: white; }
+.btn-create { background: #0a7d2c; color: white; padding: 9px 20px; font-size: 14px; }
+.cancel { margin-left: 12px; color: #555; font-size: 14px; }
+.field { margin-bottom: 16px; max-width: 520px; }
+label { display: block; font-weight: bold; margin-bottom: 5px; font-size: 14px; }
+input[type=text], input[type=email], input[type=number], input[type=date] { width: 100%; padding: 9px 12px; border: 1px solid #ccc; border-radius: 6px; font-size: 14px; box-sizing: border-box; }
+input:focus { outline: none; border-color: #777bb4; box-shadow: 0 0 0 2px #e2e1f3; }
+.hint { color: #888; font-size: 12px; margin-top: 4px; }
+.field-error { color: #b00020; font-size: 13px; font-weight: bold; margin-top: 4px; }
+.novalidate { font-weight: normal; font-size: 12px; color: #666; margin-top: 14px; }
+.novalidate input { margin-right: 6px; }
+.error { color: #b00020; font-weight: bold; }
+.ok-msg { color: #0a7d2c; font-weight: bold; }
+.empty { color: #888; margin-top: 20px; }
+.label { font-weight: bold; display: inline-block; width: 170px; }
+.row { margin: 10px 0; }
+.id-badge { display: inline-block; background: #f1f0fa; border: 1px solid #d9d7ee; border-radius: 6px; padding: 4px 10px; font-size: 13px; color: #444; margin-bottom: 20px; }
+.method { font-weight: bold; font-size: 12px; padding: 2px 8px; border-radius: 4px; color: white; }
+.m-get { background: #61affe; } .m-post { background: #49cc90; } .m-put { background: #fca130; } .m-delete { background: #f93e3e; }
+code { background: #f4f4f8; padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+.meta { color: #666; margin-top: 28px; font-size: 13px; border-top: 1px solid #eee; padding-top: 14px; }

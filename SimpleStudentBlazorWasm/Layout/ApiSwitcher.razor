@@ -1,0 +1,14 @@
+@* Switches the backend for this browser tab. No page reload: the pages listen to
+   ApiConnection.Changed and load their data again from the newly selected API. *@
+@inject ApiConnection Api
+
+<span class="switcher">
+    API:
+    @foreach (var backend in Api.Backends)
+    {
+        <button class="@(backend == Api.Current ? "active" : "")" @onclick="() => Api.Select(backend.Name)">
+            @backend.Name
+        </button>
+    }
+    <a href="@Api.SwaggerUrl" target="_blank">Swagger ↗</a>
+</span>

@@ -1,0 +1,75 @@
+@page "/faculty"
+@implements IDisposable
+@inject ApiConnection Api
+
+<PageTitle>Faculty – Blazor WASM</PageTitle>
+
+<h1>@(_faculty?.Name ?? "Faculty")</h1>
+<p>GET <code>/api/faculty</code> – the API groups students by study program and enrollment year.
+   Click a group to show or hide its students (handled in C#, no JavaScript written).</p>
+
+@if (_error is not null)
+{
+    <p class="error">Error: @_error</p>
+}
+else if (_faculty is null)
+{
+    <p>Loading…</p>
+}
+else
+{
+    @foreach (var group in _faculty.Groups ?? new List<GroupResponse>())
+    {
+        var open = _open.Contains(group.Code);
+        <div class="group">
+            <button class="group-head" @onclick="() => Toggle(group.Code)">
+                @(open ? "▾" : "▸") <strong>@group.Code</strong> – @group.StudyProgram @group.EnrollmentYear
+                <span class="count">(@(group.Students?.Count ?? 0))</span>
+            </button>
+            @if (open)
+            {
+                <ul>
+                    @foreach (var s in group.Students ?? new List<Student>())
+                    {
+                        <li><a href="students/@s.Id">@s.LastName @s.FirstName</a> – @s.Email</li>
+                    }
+                </ul>
+            }
+        </div>
+    }
+}
+
+@code {
+    private FacultyResponse? _faculty;
+    private string? _error;
+    private readonly HashSet<string> _open = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        Api.Changed += OnApiChanged;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _faculty = null;
+        _error = null;
+        try
+        {
+            _faculty = await Api.Client.GetFacultyAsync();                  // GET /api/faculty
+        }
+        catch (Exception ex)
+        {
+            _error = ApiErrors.ToMessage(ex);
+        }
+    }
+
+    private void Toggle(string code)
+    {
+        if (!_open.Remove(code)) _open.Add(code);
+    }
+
+    private void OnApiChanged() => InvokeAsync(async () => { await LoadAsync(); StateHasChanged(); });
+
+    public void Dispose() => Api.Changed -= OnApiChanged;
+}

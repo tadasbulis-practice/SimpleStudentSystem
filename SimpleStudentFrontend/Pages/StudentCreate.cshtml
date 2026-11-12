@@ -1,0 +1,62 @@
+@page
+@model SimpleStudentFrontend.Pages.StudentCreateModel
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Add Student</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; background: #f5f7fb; color: #222; }
+        .card { max-width: 520px; background: white; border-radius: 12px; padding: 28px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+        h1 { margin-top: 0; }
+        nav a { margin-right: 16px; color: #1a73e8; text-decoration: none; font-size: 14px; }
+        nav a:hover { text-decoration: underline; }
+        .field { margin-bottom: 18px; }
+        label { display: block; font-weight: bold; margin-bottom: 5px; font-size: 14px; }
+        input { width: 100%; padding: 9px 12px; border: 1px solid #ccc; border-radius: 6px; font-size: 14px; box-sizing: border-box; }
+        input:focus { outline: none; border-color: #1a73e8; box-shadow: 0 0 0 2px #d2e3fc; }
+        .btn-submit { background: #0a7d2c; color: white; padding: 10px 24px; border: none; border-radius: 6px; font-size: 15px; cursor: pointer; }
+        .btn-submit:hover { background: #075c20; }
+        .btn-cancel { margin-left: 12px; color: #555; text-decoration: none; font-size: 14px; }
+        .error { color: #b00020; font-weight: bold; margin-bottom: 14px; }
+    </style>
+</head>
+<body>
+<div class="card">
+    <partial name="_Nav" />
+
+    <h1>Add New Student</h1>
+
+    @if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
+    {
+        <p class="error">Error: @Model.ErrorMessage</p>
+    }
+
+    <form method="post">
+        <div class="field">
+            <label asp-for="Input.FirstName">First Name</label>
+            <input asp-for="Input.FirstName" required />
+        </div>
+        <div class="field">
+            <label asp-for="Input.LastName">Last Name</label>
+            <input asp-for="Input.LastName" required />
+        </div>
+        <div class="field">
+            <label asp-for="Input.Email">Email</label>
+            <input asp-for="Input.Email" type="email" required />
+        </div>
+        <div class="field">
+            <label asp-for="Input.StudyProgram">Study Program</label>
+            <input asp-for="Input.StudyProgram" required />
+        </div>
+        <div class="field">
+            <label asp-for="Input.EnrollmentYear">Enrollment Year</label>
+            <input asp-for="Input.EnrollmentYear" type="number" min="2000" max="2100" required />
+        </div>
+        <button type="submit" class="btn-submit">Save Student</button>
+        <a class="btn-cancel" href="/Students">Cancel</a>
+    </form>
+</div>
+</body>
+</html>

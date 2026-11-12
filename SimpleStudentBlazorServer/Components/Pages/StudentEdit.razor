@@ -1,0 +1,60 @@
+@* One component, two addresses: "new" creates, "{id}/edit" updates. *@
+@page "/students/new"
+@page "/students/{Id:int}/edit"
+@inject ApiConnection Api
+@inject NavigationManager Navigation
+
+<PageTitle>@(IsNew ? "Add Student" : $"Edit Student {Id}") – Blazor Server</PageTitle>
+
+<h1>@(IsNew ? "Add New Student" : $"Edit Student #{Id}")</h1>
+
+@if (_loadError is not null)
+{
+    <p class="error">Error: @_loadError</p>
+    <p><a href="students">← Back to Students</a></p>
+}
+else if (_student is null)
+{
+    <p>Loading…</p>
+}
+else
+{
+    <StudentForm Model="_student" Save="SaveAsync" />
+}
+
+@code {
+    [Parameter] public int? Id { get; set; }
+
+    private bool IsNew => Id is null;
+    private Student? _student;
+    private string? _loadError;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _loadError = null;
+        if (IsNew)
+        {
+            _student = new Student { EnrollmentYear = DateTime.Now.Year };
+            return;
+        }
+        try
+        {
+            _student = await Api.Client.GetStudentAsync(Id!.Value);          // GET /api/students/{id}
+        }
+        catch (Exception ex)
+        {
+            _loadError = ApiErrors.ToMessage(ex);
+        }
+    }
+
+    // Called by StudentForm; exceptions (400 validation errors) are shown by the form itself.
+    private async Task SaveAsync(Student student)
+    {
+        if (IsNew)
+            await Api.Client.CreateStudentAsync(student);                    // POST /api/students → 201
+        else
+            await Api.Client.UpdateStudentAsync(Id!.Value, student);         // PUT /api/students/{id} → 200
+
+        Navigation.NavigateTo("students");
+    }
+}

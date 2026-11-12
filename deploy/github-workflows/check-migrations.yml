@@ -1,0 +1,78 @@
+# Checks the Supabase part BEFORE it reaches Test / Production:
+#  - job "migrations":    supabase/migrations + seed on a throw-away PostgreSQL
+#  - job "edge-function": the Edge Function API type-checks, passes lint, and its copies of the
+#                         contract / validator are identical to SimpleStudentNodeApi
+#
+# Details of the migrations job:
+# every pull request (and push to develop) applies supabase/migrations + supabase/seed.sql
+# to an empty, throw-away PostgreSQL inside the GitHub runner – twice, to prove that a second
+# run changes nothing. No secrets needed, so it also works for pull requests from forks.
+
+name: check-migrations
+
+on:
+  pull_request:
+    paths: ['supabase/**', 'SimpleStudentNodeApi/openapi/**', 'SimpleStudentNodeApi/src/validator.js', 'SimpleStudentNodeApi/src/problems.js']
+  push:
+    branches: [develop]
+    paths: ['supabase/**', 'SimpleStudentNodeApi/openapi/**', 'SimpleStudentNodeApi/src/validator.js', 'SimpleStudentNodeApi/src/problems.js']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  migrations:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DB_URL: postgresql://postgres:postgres@localhost:5432/postgres
+      PGSSLMODE: disable
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 3.1.0
+
+      - name: Apply migrations + seed (1st run)
+        run: supabase db push --remote="$DB_URL" --include-seed --yes
+
+      - name: Apply again (2nd run must be "up to date")
+        run: supabase db push --remote="$DB_URL" --include-seed --yes
+
+      - name: Show the result
+        run: |
+          psql "$DB_URL" -c 'SELECT * FROM "Students";'
+          psql "$DB_URL" -c 'SELECT version, name FROM supabase_migrations.schema_migrations;'
+
+  edge-function:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: supabase/functions/simplestudent-api
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Copies identical to SimpleStudentNodeApi (one contract for all APIs)
+        run: |
+          diff -u ../../../SimpleStudentNodeApi/openapi/openapi.json openapi.json
+          diff -u ../../../SimpleStudentNodeApi/src/validator.js     validator.js
+          diff -u ../../../SimpleStudentNodeApi/src/problems.js      problems.js
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Type check + lint
+        run: |
+          deno check index.ts
+          deno lint

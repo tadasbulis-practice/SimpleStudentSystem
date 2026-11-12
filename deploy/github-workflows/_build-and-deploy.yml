@@ -1,0 +1,237 @@
+# Reusable workflow – one release of SimpleStudentSystem into ONE environment:
+#
+#   1. database       – Supabase: apply new migrations (supabase/migrations) + demo data (supabase/seed.sql)
+#   2. edge-function  – Supabase: deploy the API supabase/functions/simplestudent-api (runs INSIDE Supabase)
+#   3. image          – Docker image of every project → GitHub Container Registry (ghcr.io)
+#                       → if a deploy hook is configured: deploy to Render
+#
+# Called by deploy-test.yml       (release/vX.Y.Z      → environment "test"       → Supabase "SimpleStudent System Test")
+#       and deploy-production.yml (tag vX.Y.Z on main  → environment "production" → Supabase "SimpleStudentSystem")
+#
+# The database is migrated FIRST, so new code never runs against an old table.
+# The SAME image is used in every environment ("build once, run anywhere"); only the settings
+# in the hosting dashboard differ: database connection, API URL of the frontends, APP_ENVIRONMENT.
+#
+# Everything is optional per environment – a missing secret is skipped with a notice:
+#   SUPABASE_DB_URL      secret   Session pooler URI of the Supabase project (with the password)
+#   SUPABASE_PROJECT_REF variable e.g. xkkzlqedgvztdlvgerbu – Edge Function target + links in the summary
+#   SUPABASE_ACCESS_TOKEN secret   personal access token (supabase.com → Account → Access Tokens),
+#                                  repository secret or environment secret – needed for the Edge Function
+#   API_READ_ONLY        variable  true → the Edge Function API refuses POST / PUT / DELETE (e.g. production)
+#   RENDER_HOOK_*        secret   Render deploy hook of one service
+
+name: build-and-deploy (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: GitHub environment with the secrets (test | production)
+        required: true
+        type: string
+      version:
+        description: Image tag, e.g. 1.3.0-rc.12 (test) or 1.3.0 (production)
+        required: true
+        type: string
+      channel:
+        description: Moving tag that always points to the newest image of this environment (test | latest)
+        required: true
+        type: string
+      lab_dir:
+        description: Folder with the projects inside the repository ("." = repository root)
+        required: false
+        type: string
+        default: "."
+
+permissions:
+  contents: read
+  packages: write          # push images to ghcr.io with the built-in GITHUB_TOKEN
+
+env:
+  SUPABASE_CLI_VERSION: 3.1.0   # pinned: the same CLI version locally and in CI
+
+jobs:
+  database:
+    name: Supabase database (${{ inputs.environment }})
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v4
+
+      - name: Set up Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: ${{ env.SUPABASE_CLI_VERSION }}
+
+      - name: Apply migrations + seed to Supabase (${{ inputs.environment }})
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
+          PGSSLMODE: require          # Supabase: never connect unencrypted
+        working-directory: ${{ inputs.lab_dir }}
+        run: |
+          if [ -z "$SUPABASE_DB_URL" ]; then
+            echo "::notice title=Supabase::No secret SUPABASE_DB_URL in environment '${{ inputs.environment }}' - database not migrated."
+            echo "### Supabase (${{ inputs.environment }}): skipped – no SUPABASE_DB_URL" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          echo "Migrations in the repository:"
+          ls -1 supabase/migrations
+          # --remote=<url> : the database from the secret (no `supabase link`, no access token needed)
+          # --include-seed : supabase/seed.sql (only once per project / when the file changes)
+          # --yes          : no interactive question in CI
+          supabase db push --remote="$SUPABASE_DB_URL" --include-seed --yes
+          {
+            echo "### Supabase (${{ inputs.environment }}): migrations applied"
+            echo
+            echo "| Migration file |"
+            echo "|---|"
+            ls -1 supabase/migrations | sed 's/^/| /; s/$/ |/'
+            if [ -n "$PROJECT_REF" ]; then
+              echo
+              echo "Table Editor: https://supabase.com/dashboard/project/${PROJECT_REF}/editor"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  edge-function:
+    name: Supabase Edge Function API (${{ inputs.environment }})
+    needs: database        # the API needs the table from the migrations
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}   # the CLI reads it from the environment
+      PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v4
+
+      - name: Settings present?
+        id: check
+        run: |
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ] || [ -z "$PROJECT_REF" ]; then
+            echo "::notice title=Edge Function::SUPABASE_ACCESS_TOKEN or SUPABASE_PROJECT_REF missing for '${{ inputs.environment }}' - API not deployed."
+            echo "### Edge Function (${{ inputs.environment }}): skipped – no SUPABASE_ACCESS_TOKEN / SUPABASE_PROJECT_REF" >> "$GITHUB_STEP_SUMMARY"
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up Supabase CLI
+        if: steps.check.outputs.run == 'true'
+        uses: supabase/setup-cli@v1
+        with:
+          version: ${{ env.SUPABASE_CLI_VERSION }}
+
+      - name: Settings of the function (Edge Function secrets)
+        if: steps.check.outputs.run == 'true'
+        working-directory: ${{ inputs.lab_dir }}
+        run: |
+          case "${{ inputs.environment }}" in
+            production) app_env=Production ;;
+            test)       app_env=Test ;;
+            *)          app_env="${{ inputs.environment }}" ;;
+          esac
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          repo="${GITHUB_REPOSITORY#*/}"
+          supabase secrets set --remote="$PROJECT_REF" --yes \
+            APP_ENVIRONMENT="$app_env" \
+            APP_VERSION="${{ inputs.version }}" \
+            API_READ_ONLY="${{ vars.API_READ_ONLY || 'false' }}" \
+            SWAGGER_UI_URL="https://${owner}.github.io/${repo}/?env=${{ inputs.environment }}"
+
+      - name: Deploy supabase/functions/simplestudent-api
+        if: steps.check.outputs.run == 'true'
+        working-directory: ${{ inputs.lab_dir }}
+        # --use-api: bundled by Supabase, no Docker needed; --no-verify-jwt: public API (also in config.toml)
+        run: supabase functions deploy simplestudent-api --remote="$PROJECT_REF" --use-api --no-verify-jwt --yes
+
+      - name: Smoke test /api/info
+        if: steps.check.outputs.run == 'true'
+        run: |
+          url="https://${PROJECT_REF}.supabase.co/functions/v1/simplestudent-api"
+          for i in 1 2 3 4 5 6; do
+            if body=$(curl --fail --silent --show-error "$url/api/info"); then break; fi
+            echo "not ready yet ($i/6)"; sleep 10
+          done
+          echo "$body" | jq .
+          test "$(echo "$body" | jq -r .version)" = "${{ inputs.version }}"
+          count=$(curl --fail --silent "$url/api/students" | jq length)
+          {
+            echo "### Edge Function API (${{ inputs.environment }}): deployed, version ${{ inputs.version }}, $count students"
+            echo
+            echo "- API: $url/api/students"
+            echo "- OpenAPI: $url/swagger/v1/swagger.json"
+            echo "- Swagger UI: https://${GITHUB_REPOSITORY_OWNER,,}.github.io/${GITHUB_REPOSITORY#*/}/?env=${{ inputs.environment }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  image:
+    name: ${{ matrix.project }}
+    needs: database        # first the database, then the code that uses it
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    strategy:
+      fail-fast: false     # one broken project must not stop the others
+      matrix:
+        include:
+          # project = folder with the Dockerfile, image = short image name, hook = secret with the Render deploy hook
+          - { project: SimpleStudentApi,         image: dotnetapi,      hook: RENDER_HOOK_DOTNETAPI }
+          - { project: SimpleStudentPhpApi,      image: phpapi,         hook: RENDER_HOOK_PHPAPI }
+          - { project: SimpleStudentPythonApi,   image: pythonapi,      hook: RENDER_HOOK_PYTHONAPI }
+          - { project: SimpleStudentNodeApi,     image: nodeapi,        hook: RENDER_HOOK_NODEAPI }
+          - { project: SimpleStudentFrontend,    image: dotnetfrontend, hook: RENDER_HOOK_DOTNETFRONTEND }
+          - { project: SimpleStudentPhpFrontend, image: phpfrontend,    hook: RENDER_HOOK_PHPFRONTEND }
+
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v4
+
+      - name: Image name
+        id: img
+        # ghcr.io names must be lowercase: ghcr.io/tadasbulis-practice/simplestudentsystem-nodeapi
+        run: |
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          repo="${GITHUB_REPOSITORY#*/}"
+          echo "name=ghcr.io/${owner}/${repo,,}-${{ matrix.image }}" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push ${{ steps.img.outputs.name }}:${{ inputs.version }}
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ inputs.lab_dir }}/${{ matrix.project }}
+          platforms: linux/amd64
+          push: true
+          build-args: APP_VERSION=${{ inputs.version }}
+          tags: |
+            ${{ steps.img.outputs.name }}:${{ inputs.version }}
+            ${{ steps.img.outputs.name }}:${{ inputs.channel }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.version=${{ inputs.version }}
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+
+      - name: Deploy to Render (${{ inputs.environment }})
+        env:
+          DEPLOY_HOOK: ${{ secrets[matrix.hook] }}
+          IMAGE: ${{ steps.img.outputs.name }}:${{ inputs.version }}
+        run: |
+          if [ -z "$DEPLOY_HOOK" ]; then
+            echo "::notice title=${{ matrix.project }}::No secret ${{ matrix.hook }} in environment '${{ inputs.environment }}' - image pushed, not deployed."
+            echo "| ${{ matrix.project }} | \`$IMAGE\` | built only |" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          # The deploy hook URL already contains ?key=... ; imgURL tells Render which image tag to run
+          img_url=$(jq -rn --arg v "$IMAGE" '$v|@uri')
+          curl --fail --silent --show-error -X POST "${DEPLOY_HOOK}&imgURL=${img_url}"
+          echo
+          echo "| ${{ matrix.project }} | \`$IMAGE\` | deployed to Render (${{ inputs.environment }}) |" >> "$GITHUB_STEP_SUMMARY"

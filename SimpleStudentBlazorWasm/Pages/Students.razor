@@ -1,0 +1,117 @@
+@page "/students"
+@implements IDisposable
+@inject ApiConnection Api
+
+<PageTitle>Students – Blazor WASM</PageTitle>
+
+<h1>Students</h1>
+
+@if (_error is not null)
+{
+    <p class="error">Error: @_error</p>
+}
+
+<div class="toolbar">
+    <a class="btn btn-create" href="students/new">+ Add Student</a>
+    @* @bind:event="oninput" – the list is filtered on every key press, without a request to the API *@
+    <input class="search" placeholder="Search name, email, program…" @bind="_search" @bind:event="oninput" />
+    <span class="count">@Filtered.Count() of @_students.Count</span>
+</div>
+
+@if (_loading)
+{
+    <p>Loading…</p>
+}
+else if (_students.Count == 0 && _error is null)
+{
+    <p class="empty">No students found. Add one above!</p>
+}
+else
+{
+    <table>
+        <thead>
+            <tr><th>ID</th><th>First Name</th><th>Last Name</th><th>Email</th><th>Study Program</th><th>Year</th><th>Actions</th></tr>
+        </thead>
+        <tbody>
+            @foreach (var s in Filtered)
+            {
+                <tr>
+                    <td>@s.Id</td>
+                    <td>@s.FirstName</td>
+                    <td>@s.LastName</td>
+                    <td>@s.Email</td>
+                    <td>@s.StudyProgram</td>
+                    <td>@s.EnrollmentYear</td>
+                    <td class="actions">
+                        @if (_confirmDeleteId == s.Id)
+                        {
+                            @* Confirmation inside the row – no browser dialog, no page reload *@
+                            <span>Delete?</span>
+                            <button class="btn btn-delete" @onclick="() => DeleteAsync(s.Id)">Yes</button>
+                            <button class="btn btn-view" @onclick="() => _confirmDeleteId = null">No</button>
+                        }
+                        else
+                        {
+                            <a class="btn btn-view" href="students/@s.Id">View</a>
+                            <a class="btn btn-edit" href="students/@s.Id/edit">Edit</a>
+                            <button class="btn btn-delete" @onclick="() => _confirmDeleteId = s.Id">Delete</button>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<Student> _students = new();
+    private string _search = "";
+    private int? _confirmDeleteId;
+    private bool _loading = true;
+    private string? _error;
+
+    private IEnumerable<Student> Filtered => string.IsNullOrWhiteSpace(_search)
+        ? _students
+        : _students.Where(s => $"{s.FirstName} {s.LastName} {s.Email} {s.StudyProgram} {s.EnrollmentYear}"
+                                   .Contains(_search, StringComparison.OrdinalIgnoreCase));
+
+    protected override async Task OnInitializedAsync()
+    {
+        Api.Changed += OnApiChanged;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            _students = (await Api.Client.GetStudentsAsync()).ToList();     // GET /api/students
+        }
+        catch (Exception ex)
+        {
+            _students = new();
+            _error = ApiErrors.ToMessage(ex);
+        }
+        _loading = false;
+    }
+
+    private async Task DeleteAsync(int id)
+    {
+        _confirmDeleteId = null;
+        try
+        {
+            await Api.Client.DeleteStudentAsync(id);                         // DELETE /api/students/{id}
+            _students.RemoveAll(s => s.Id == id);                           // update the table in place
+        }
+        catch (Exception ex)
+        {
+            _error = "Delete failed: " + ApiErrors.ToMessage(ex);
+        }
+    }
+
+    private void OnApiChanged() => InvokeAsync(async () => { await LoadAsync(); StateHasChanged(); });
+
+    public void Dispose() => Api.Changed -= OnApiChanged;
+}

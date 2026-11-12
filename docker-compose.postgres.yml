@@ -1,0 +1,39 @@
+# PostgreSQL – second database of the lab (next to SQL Server in docker-compose.infra.yml).
+#
+#   Start once, leave running:   docker-compose -f docker-compose.postgres.yml up -d --build
+#   Stop:                        docker-compose -f docker-compose.postgres.yml down
+#   Delete ALL data and re-run database/postgres/create.sql:
+#                                docker-compose -f docker-compose.postgres.yml down -v
+#
+# Requires the network student-net – start docker-compose.infra.yml first (it creates it),
+# or create it yourself once: docker network create student-net
+# Native ARM64 image: runs fast on Apple Silicon (no Rosetta needed, unlike SQL Server).
+
+networks:
+  student-net:
+    external: true
+
+volumes:
+  postgres_data:
+
+services:
+  postgres:
+    build:
+      context: ./database/postgres   # postgres:17-alpine + create.sql (see the Dockerfile there)
+    container_name: postgres
+    environment:
+      POSTGRES_DB: StudentDb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: "1Secure*Password1"
+    ports:
+      - "5432:5432"            # host access: psql, DBeaver, pgAdmin, VS Code → localhost:5432
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - student-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d StudentDb"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
