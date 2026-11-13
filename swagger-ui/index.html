@@ -54,10 +54,12 @@
       SwaggerUIBundle({ url: `${url}/swagger/v1/swagger.json`, dom_id: '#swagger-ui', deepLinking: true });
       info.textContent = 'loading /api/info …';
       try {
-        const r = await (await fetch(`${url}/api/info`)).json();
+        const res = await fetch(`${url}/api/info`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const r = await res.json();
         info.textContent = `${r.environment} · version ${r.version}` + (r.readOnly ? ' · read-only' : '') + ` · ${url}`;
       } catch (e) {
-        info.textContent = `API not reachable (${url}) – not deployed yet, or the Supabase project is paused.`;
+        info.textContent = `API not reachable (${e.message}) – not deployed to this environment yet, or the Supabase project is paused. ${url}`;
       }
     }
     select.addEventListener('change', load);

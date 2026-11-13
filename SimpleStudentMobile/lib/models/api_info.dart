@@ -8,6 +8,7 @@ class ApiInfo {
     required this.environment,
     required this.endpoints,
     this.timestampUtc,
+    this.readOnly,
   });
 
   final String service;
@@ -17,6 +18,9 @@ class ApiInfo {
   final String environment;
   final List<String> endpoints;
   final DateTime? timestampUtc;
+
+  /// Only the Supabase Edge Function API sends it: true in Production (POST / PUT / DELETE → 403).
+  final bool? readOnly;
 
   factory ApiInfo.fromJson(Map<String, dynamic> json) {
     final rawEndpoints = json['endpoints'];
@@ -30,6 +34,7 @@ class ApiInfo {
           ? rawEndpoints.map((e) => e.toString()).toList()
           : const <String>[],
       timestampUtc: DateTime.tryParse(json['timestampUtc'] as String? ?? ''),
+      readOnly: json['readOnly'] as bool?,
     );
   }
 }

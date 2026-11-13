@@ -61,7 +61,15 @@ api.get('/swagger/v1/swagger.json', (req, res) => {
     // servers = this function, so "Try it out" in Swagger UI (GitHub Pages) calls the right environment
     res.json({
         ...contract,
-        info: { ...contract.info, title: 'SimpleStudent Edge API (Supabase)', 'x-environment': config.environment },
+        info: {
+            ...contract.info,
+            title: 'SimpleStudent Edge API (Supabase)',
+            description: 'The same Student CRUD contract as SimpleStudentApi (.NET) and SimpleStudentNodeApi, running as a ' +
+                         'Supabase Edge Function (Deno + Express) on the project\'s own PostgreSQL. ' +
+                         `Environment: ${config.environment}, version ${config.version}` +
+                         (config.readOnly ? ' – read-only: POST, PUT and DELETE answer 403.' : '.'),
+            'x-environment': config.environment,
+        },
         servers: [{ url: publicBase(req), description: `Supabase Edge Function – ${config.environment}` }],
     });
 });

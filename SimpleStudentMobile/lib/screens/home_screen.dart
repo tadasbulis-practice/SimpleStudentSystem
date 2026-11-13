@@ -60,15 +60,20 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _editApiAddress() async {
-    final newUrl = await showDialog<String>(
+    final choice = await showDialog<ApiChoice>(
       context: context,
-      builder: (_) => _ApiAddressDialog(initialValue: widget.config.baseUrl),
+      builder: (_) => ApiEnvironmentDialog(
+        initialEnvironment: widget.config.environment,
+        initialCustomUrl: widget.config.customBaseUrl,
+      ),
     );
-    if (newUrl == null) return;
-    if (newUrl == _ApiAddressDialog.resetValue) {
+    if (choice == null) return;
+    if (choice.reset) {
       await widget.config.resetToDefault();
+    } else if (choice.environment == ApiEnvironment.custom) {
+      await widget.config.setCustomBaseUrl(choice.customUrl!);
     } else {
-      await widget.config.setBaseUrl(newUrl);
+      await widget.config.setEnvironment(choice.environment);
     }
     // The new address arrives through didUpdateWidget → _checkConnection().
   }
@@ -81,6 +86,10 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         title: const Text('Simple Student'),
         actions: [
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            child: EnvironmentChip(environment: widget.config.environment, onTap: _editApiAddress),
+          ),
           IconButton(
             tooltip: 'API address',
             icon: const Icon(Icons.settings_ethernet),
@@ -114,9 +123,10 @@ class _HomeScreenState extends State<HomeScreen> {
                       const SizedBox(height: 12),
                       const Text(
                         'This Flutter app is one more client of SimpleStudentApi. '
-                        'The same REST API (contract: swagger.json) is used by a .NET '
-                        'web frontend, a PHP frontend and this mobile app on Android '
-                        'and iOS phones and tablets.',
+                        'The same REST API (contract: swagger.json) is used by .NET, '
+                        'Blazor and PHP web frontends and this mobile app on Android '
+                        'and iOS phones and tablets – on your computer (Dev) or in the '
+                        'cloud (Test, Production).',
                       ),
                       const SizedBox(height: 16),
                       const _ArchitectureRow(
@@ -127,17 +137,19 @@ class _HomeScreenState extends State<HomeScreen> {
                       const _ArchitectureRow(
                         icon: Icons.web,
                         title: 'Web clients',
-                        subtitle: '.NET Razor Pages (:6011), PHP (:6021)',
+                        subtitle: '.NET Razor Pages, Blazor Server / WebAssembly, PHP',
                       ),
                       const _ArchitectureRow(
                         icon: Icons.api,
                         title: 'REST API',
-                        subtitle: '.NET 8 Minimal API (:6001) or PHP API (:6002)',
+                        subtitle: 'Dev: .NET, PHP, Python, Node.js in Docker\n'
+                            'Test / Production: Supabase Edge Function (Node.js + Express)',
                       ),
                       const _ArchitectureRow(
                         icon: Icons.storage,
                         title: 'Database',
-                        subtitle: 'SQL Server (Docker) or MySQL (XAMPP)',
+                        subtitle: 'Dev: SQL Server, PostgreSQL (Docker), MySQL (XAMPP)\n'
+                            'Test / Production: Supabase PostgreSQL',
                         isLast: true,
                       ),
                       const SizedBox(height: 16),
@@ -161,6 +173,19 @@ class _HomeScreenState extends State<HomeScreen> {
                     children: [
                       Text('API connection', style: textTheme.titleMedium),
                       const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          EnvironmentChip(environment: widget.config.environment),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              widget.config.environment.description,
+                              style: textTheme.bodySmall,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
                       Row(
                         children: [
                           Expanded(
@@ -196,13 +221,19 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Which address to use?', style: TextStyle(fontWeight: FontWeight.bold)),
+                      Text('Which environment to use?', style: TextStyle(fontWeight: FontWeight.bold)),
                       SizedBox(height: 8),
-                      Text('Android emulator:  http://10.0.2.2:6001'),
-                      Text('iOS Simulator:  http://localhost:6001'),
-                      Text('Real phone / tablet:  http://<PC IP in the same Wi-Fi>:6001'),
+                      Text('Dev – the API in Docker on your computer:'),
+                      Text('    Android emulator:  http://10.0.2.2:6001'),
+                      Text('    iOS Simulator:  http://localhost:6001'),
+                      Text('    PHP API: port 6002, Python 6003, Node.js 6004 / 6005'),
                       SizedBox(height: 8),
-                      Text('PHP API instead of .NET: use port 6002.'),
+                      Text('Test – Supabase in the cloud, works on every device. Writing allowed.'),
+                      Text('Production – Supabase, released version. Read-only: adding, editing '
+                          'and deleting answer 403.'),
+                      SizedBox(height: 8),
+                      Text('Custom – any address, e.g. a real phone in the same Wi-Fi: '
+                          'http://<PC IP>:6001'),
                     ],
                   ),
                 ),
@@ -314,6 +345,11 @@ class _ConnectionStatus extends StatelessWidget {
         const SizedBox(height: 4),
         Text(i.message),
         Text('Environment: ${i.environment}'),
+        if (i.readOnly == true)
+          Text(
+            'Read-only: adding, editing and deleting are disabled here.',
+            style: TextStyle(color: colors.error),
+          ),
         if (i.timestampUtc != null) Text('Server time (UTC): ${i.timestampUtc!.toIso8601String()}'),
         if (i.endpoints.isNotEmpty) Text('Endpoints: ${i.endpoints.join(', ')}'),
       ],
@@ -321,21 +357,82 @@ class _ConnectionStatus extends StatelessWidget {
   }
 }
 
-/// Dialog for changing the API address. Returns the new address,
-/// [resetValue] for "default", or null when cancelled.
-class _ApiAddressDialog extends StatefulWidget {
-  const _ApiAddressDialog({required this.initialValue});
+/// Result of [ApiEnvironmentDialog].
+class ApiChoice {
+  const ApiChoice(this.environment, {this.customUrl, this.reset = false});
 
-  final String initialValue;
-  static const resetValue = '__reset__';
+  /// "Use default" – forget the saved choice.
+  const ApiChoice.reset() : this(ApiEnvironment.dev, reset: true);
 
-  @override
-  State<_ApiAddressDialog> createState() => _ApiAddressDialogState();
+  final ApiEnvironment environment;
+
+  /// Only for [ApiEnvironment.custom].
+  final String? customUrl;
+  final bool reset;
 }
 
-class _ApiAddressDialogState extends State<_ApiAddressDialog> {
+/// Small coloured label of the environment: DEV, TEST, PROD, CUSTOM.
+class EnvironmentChip extends StatelessWidget {
+  const EnvironmentChip({super.key, required this.environment, this.onTap});
+
+  final ApiEnvironment environment;
+  final VoidCallback? onTap;
+
+  static const _colors = {
+    ApiEnvironment.dev: Colors.blueGrey,
+    ApiEnvironment.test: Colors.orange,
+    ApiEnvironment.production: Colors.red,
+    ApiEnvironment.custom: Colors.purple,
+  };
+
+  static const _short = {
+    ApiEnvironment.dev: 'DEV',
+    ApiEnvironment.test: 'TEST',
+    ApiEnvironment.production: 'PROD',
+    ApiEnvironment.custom: 'CUSTOM',
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _colors[environment]!;
+    return Material(
+      color: color.withValues(alpha: 0.15),
+      shape: StadiumBorder(side: BorderSide(color: color)),
+      child: InkWell(
+        customBorder: const StadiumBorder(),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          child: Text(
+            _short[environment]!,
+            style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 12),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Dialog for choosing the API environment: Dev, Test, Production or a Custom address.
+/// Returns an [ApiChoice], or null when cancelled.
+class ApiEnvironmentDialog extends StatefulWidget {
+  const ApiEnvironmentDialog({
+    super.key,
+    required this.initialEnvironment,
+    required this.initialCustomUrl,
+  });
+
+  final ApiEnvironment initialEnvironment;
+  final String initialCustomUrl;
+
+  @override
+  State<ApiEnvironmentDialog> createState() => _ApiEnvironmentDialogState();
+}
+
+class _ApiEnvironmentDialogState extends State<ApiEnvironmentDialog> {
   final _formKey = GlobalKey<FormState>();
-  late final _controller = TextEditingController(text: widget.initialValue);
+  late ApiEnvironment _selected = widget.initialEnvironment;
+  late final _controller = TextEditingController(text: widget.initialCustomUrl);
 
   @override
   void dispose() {
@@ -344,44 +441,83 @@ class _ApiAddressDialogState extends State<_ApiAddressDialog> {
   }
 
   void _save() {
-    if (_formKey.currentState!.validate()) {
-      Navigator.of(context).pop(_controller.text.trim());
+    if (_selected == ApiEnvironment.custom) {
+      if (!_formKey.currentState!.validate()) return;
+      Navigator.of(context).pop(ApiChoice(_selected, customUrl: _controller.text.trim()));
+    } else {
+      Navigator.of(context).pop(ApiChoice(_selected));
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final colors = Theme.of(context).colorScheme;
+
     return AlertDialog(
-      title: const Text('API address'),
-      content: Form(
-        key: _formKey,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            TextFormField(
-              controller: _controller,
-              autofocus: true,
-              keyboardType: TextInputType.url,
-              autocorrect: false,
-              decoration: const InputDecoration(
-                labelText: 'Base URL',
-                hintText: 'http://192.168.1.20:6001',
-              ),
-              validator: ApiConfig.validate,
-              onFieldSubmitted: (_) => _save(),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Default on this device: ${ApiConfig.defaultBaseUrl}',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          ],
+      title: const Text('API environment'),
+      contentPadding: const EdgeInsets.fromLTRB(8, 16, 8, 0),
+      content: SingleChildScrollView(
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (final env in ApiEnvironment.values)
+                ListTile(
+                  key: ValueKey('env-${env.name}'),
+                  dense: true,
+                  selected: env == _selected,
+                  leading: Icon(
+                    env == _selected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                    color: env == _selected ? colors.primary : null,
+                  ),
+                  title: Row(
+                    children: [
+                      Text(env.label),
+                      const SizedBox(width: 8),
+                      EnvironmentChip(environment: env),
+                    ],
+                  ),
+                  subtitle: Text(
+                    ApiConfig.addressOf(env) ?? env.description,
+                    style: textTheme.bodySmall?.copyWith(fontFamily: 'monospace'),
+                  ),
+                  onTap: () => setState(() => _selected = env),
+                ),
+              if (_selected == ApiEnvironment.custom)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: TextFormField(
+                    controller: _controller,
+                    autofocus: true,
+                    keyboardType: TextInputType.url,
+                    autocorrect: false,
+                    decoration: const InputDecoration(
+                      labelText: 'Custom base URL',
+                      hintText: 'http://192.168.1.20:6001',
+                    ),
+                    validator: ApiConfig.validate,
+                    onFieldSubmitted: (_) => _save(),
+                  ),
+                ),
+              if (_selected == ApiEnvironment.production)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Text(
+                    'Production is read-only: the list works, adding, editing and deleting answer 403.',
+                    style: textTheme.bodySmall?.copyWith(color: colors.error),
+                  ),
+                ),
+              const SizedBox(height: 8),
+            ],
+          ),
         ),
       ),
       actions: [
         TextButton(
-          onPressed: () => Navigator.of(context).pop(_ApiAddressDialog.resetValue),
+          onPressed: () => Navigator.of(context).pop(const ApiChoice.reset()),
           child: const Text('Use default'),
         ),
         TextButton(

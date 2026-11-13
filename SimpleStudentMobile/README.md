@@ -6,7 +6,7 @@ A mobile client for **SimpleStudentApi**: one more technology on the same REST c
 
 | Tab | What it does |
 |-----|--------------|
-| **Home** | Info about the project (heterogeneous system), API address, connection test (`GET /api/info`) |
+| **Home** | Info about the project (heterogeneous system), API environment (Dev / Test / Production / Custom), connection test (`GET /api/info`) |
 | **Students** | Full CRUD: list, create, edit, delete (`/api/students`) |
 
 Phones get a bottom **NavigationBar**. Tablets and landscape screens (≥ 600 dp) get a side **NavigationRail**.
@@ -24,8 +24,10 @@ Phones get a bottom **NavigationBar**. Tablets and landscape screens (≥ 600 dp
    SimpleStudentMobile (Flutter, Dart)
         │  HTTP + JSON   (package:http)
         ▼
- http://<API address>:6001   SimpleStudentApi (.NET 8)      ─┐ same contract
- http://<API address>:6002   SimpleStudentPhpApi (PHP)       ─┘ (swagger.json)
+ Dev:  http://<API address>:6001   SimpleStudentApi (.NET 8)      ─┐ same contract
+       http://<API address>:6002   SimpleStudentPhpApi (PHP)       │ (swagger.json)
+ Test / Production:  https://<project>.supabase.co/functions/v1/simplestudent-api
+                     Supabase Edge Function (Node.js + Express)  ─┘
         │
         ▼
  SQL Server (Docker)  or  MySQL (XAMPP)
@@ -125,22 +127,36 @@ flutter devices                      # the device must be listed
 flutter run                          # or F5 in VS Code / ▶ in Android Studio
 ```
 
-### 4. Set the API address (if needed)
+### 4. Choose the API environment
 
-The app guesses the address from the platform:
+Home tab → **Change** (or tap the **DEV / TEST / PROD** label in the top bar). The choice is saved on the device.
+
+| Environment | API | Address |
+|-------------|-----|---------|
+| **Dev** (default) | your API in Docker on this computer | Android emulator `http://10.0.2.2:6001`, iOS Simulator `http://localhost:6001` |
+| **Test** | Supabase Edge Function, project *SimpleStudent System Test* – release candidates | `https://xkkzlqedgvztdlvgerbu.supabase.co/functions/v1/simplestudent-api` |
+| **Production** | Supabase Edge Function, project *SimpleStudentSystem* – **read-only** (add / edit / delete → 403) | `https://ptkcvmldafnczhrixvcf.supabase.co/functions/v1/simplestudent-api` |
+| **Custom** | any address you type | e.g. a real phone in the same Wi-Fi: `http://192.168.1.20:6001` |
+
+Test and Production are public HTTPS addresses: they work on emulators, simulators and real phones alike,
+no Docker and no firewall settings needed. They are deployed by GitHub Actions
+(`release/vX.Y.Z` → Test, tag `vX.Y.Z` → Production) – see `deploy/SUPABASE.md` in the repository root.
+Swagger UI for both: https://tadasbulis-practice.github.io/SimpleStudentSystem/
+
+Dev addresses for other set-ups (use **Custom**):
 
 | Where the app runs | API address |
 |--------------------|-------------|
-| Android emulator | `http://10.0.2.2:6001` (10.0.2.2 = your computer) |
-| iOS Simulator (Mac) | `http://localhost:6001` |
 | Real Android via **USB** | `http://localhost:6001` after `adb reverse tcp:6001 tcp:6001` (see below) |
 | Real phone / tablet via **Wi-Fi** | `http://<your computer's IP>:6001` – same Wi-Fi network |
-| PHP API in Docker | port `6002` instead of `6001` |
+| PHP / Python / Node.js API in Docker | port `6002` / `6003` / `6004` instead of `6001` |
 | PHP API in XAMPP | `http://10.0.2.2/simpleStudentApi` (emulator) |
 
-Change it on the **Home** tab → **Change** (saved on the device), or at start-up:
+Or choose at start-up (used until something is saved in the app):
 
 ```bash
+flutter run --dart-define=API_ENV=test
+flutter run --dart-define=API_ENV=production
 flutter run --dart-define=API_BASE_URL=http://192.168.1.20:6001
 ```
 
@@ -168,9 +184,9 @@ macOS `~/Library/Android/sdk/platform-tools/adb`, Linux `~/Android/Sdk/platform-
 
 1. Computer IP: Windows `ipconfig` (IPv4 Address), macOS `ipconfig getifaddr en0`, Linux `hostname -I`.
 2. Open `http://<IP>:6001/swagger` in the **device's browser** – it must open. If not: firewall, or the Wi-Fi isolates devices (guest / public networks) → use option A.
-3. In the app: **Home → Change** → `http://<IP>:6001`.
+3. In the app: **Home → Change → Custom** → `http://<IP>:6001`.
 
-An address saved with **Change** takes priority over `--dart-define` (**Change → Use default** resets it).
+A choice saved with **Change** takes priority over `--dart-define` (**Change → Use default** resets it).
 Full steps: section 11.6 of the setup guide in `docs/`.
 
 ---

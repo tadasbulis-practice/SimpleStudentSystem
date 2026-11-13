@@ -174,3 +174,8 @@ _to_delete/
 supabase/.temp/
 supabase/.branches/
 supabase/.env
+
+# ---------- iCloud Drive / Finder duplicates ("file 2.cs", "folder 2") ----------
+# macOS creates them when ~/Documents is synced by iCloud – never commit them
+* 2
+* 2.*

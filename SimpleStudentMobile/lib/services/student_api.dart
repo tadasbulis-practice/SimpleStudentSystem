@@ -148,11 +148,13 @@ class ApiException implements Exception {
     final code = response.statusCode;
     final fieldErrors = <String, String>{};
     String? title;
+    String? detail;
 
     try {
       final body = jsonDecode(utf8.decode(response.bodyBytes));
       if (body is Map<String, dynamic>) {
         title = body['title'] as String?;
+        detail = body['detail'] as String?;
         final errors = body['errors'];
         if (errors is Map) {
           errors.forEach((key, value) {
@@ -168,7 +170,8 @@ class ApiException implements Exception {
     final message = switch (code) {
       400 => title ?? 'The data is not valid.',
       404 => 'Not found (404). The student may have been deleted.',
-      _ => title ?? 'The API returned HTTP $code.',
+      // e.g. 403 from Production: "This environment is read-only." + which methods are disabled
+      _ => [title ?? 'The API returned HTTP $code.', if (detail != null) detail].join('\n'),
     };
     return ApiException(message, statusCode: code, fieldErrors: fieldErrors);
   }
